@@ -7,12 +7,14 @@
 
 	const i18n = getContext('i18n');
 
+	type ParamsMap = Record<string, any>;
+
 	export let onChange: (params: any) => void = () => {};
 
 	export let admin = false;
 	export let custom = false;
 
-	const defaultParams = {
+	const defaultParams: ParamsMap = {
 		// Advanced
 		stream_response: null, // Set stream responses for this model individually
 		stream_delta_chunk_size: null, // Set the chunk size for streaming responses
@@ -47,8 +49,25 @@
 		num_gpu: null
 	};
 
-	export let params = defaultParams;
+	export let params: ParamsMap = { ...defaultParams };
+	const reasoningEffortLevels = ['low', 'medium', 'high'];
+
+	$: if (
+		(params?.reasoning_effort ?? null) !== null &&
+		!reasoningEffortLevels.includes((params?.reasoning_effort ?? '').toString().toLowerCase())
+	) {
+		params.reasoning_effort = 'medium';
+	}
+
+	$: if (
+		(params?.reasoning_effort ?? null) !== null &&
+		typeof params.reasoning_effort === 'string'
+	) {
+		params.reasoning_effort = params.reasoning_effort.toLowerCase();
+	}
+
 	$: if (params) {
+		params.custom_params = params?.custom_params ?? {};
 		onChange(params);
 	}
 </script>
@@ -416,13 +435,16 @@
 		{#if (params?.reasoning_effort ?? null) !== null}
 			<div class="flex mt-0.5 space-x-2">
 				<div class=" flex-1">
-					<input
+					<select
 						class="text-sm w-full bg-transparent outline-hidden outline-none"
-						type="text"
-						placeholder={$i18n.t('Enter reasoning effort')}
 						bind:value={params.reasoning_effort}
-						autocomplete="off"
-					/>
+					>
+						{#each reasoningEffortLevels as level}
+							<option value={level}
+								>{$i18n.t(level.charAt(0).toUpperCase() + level.slice(1))}</option
+							>
+						{/each}
+					</select>
 				</div>
 			</div>
 		{/if}
@@ -1640,7 +1662,7 @@
 									placeholder={$i18n.t('Custom Parameter Name')}
 									value={key}
 									on:change={(e) => {
-										const newKey = e.target.value.trim();
+										const newKey = (e.currentTarget as HTMLInputElement).value.trim();
 										if (newKey && newKey !== key) {
 											params.custom_params[newKey] = params.custom_params[key];
 											delete params.custom_params[key];
