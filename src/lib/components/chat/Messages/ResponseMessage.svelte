@@ -100,6 +100,8 @@
 		}[];
 		info?: {
 			openai?: boolean;
+			thinking_level?: string;
+			active_mode?: string;
 			prompt_tokens?: number;
 			completion_tokens?: number;
 			total_tokens?: number;
@@ -173,6 +175,21 @@
 		(model?.info?.meta?.capabilities?.status_updates ?? true) &&
 		statusEntries.length > 0 &&
 		!(statusEntries.at(-1)?.hidden ?? false);
+	$: thinkingLevel = (message?.info?.thinking_level ?? '').toString().toLowerCase();
+	$: hasThinkingLevel = ['low', 'medium', 'high'].includes(thinkingLevel);
+	$: thinkingLevelLabel = hasThinkingLevel
+		? `${thinkingLevel.charAt(0).toUpperCase()}${thinkingLevel.slice(1)}`
+		: '';
+	$: activeMode = (message?.info?.active_mode ?? '').toString().toUpperCase();
+	$: hasActiveMode = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'].includes(activeMode);
+	$: activeModeLabel =
+		activeMode === 'FULL_AUTONOMY'
+			? 'Full Autonomy'
+			: activeMode === 'RECON_ONLY'
+				? 'Recon Only'
+				: activeMode === 'HUMAN_IN_LOOP'
+					? 'Human in Loop'
+					: '';
 
 	let edit = false;
 	let editedContent = '';
@@ -639,6 +656,26 @@
 						{ASSISTANT_BRAND_NAME}
 					</span>
 				</Tooltip>
+
+				{#if hasThinkingLevel}
+					<div class="self-center ml-1.5">
+						<span
+							class="px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+						>
+							{$i18n.t('Thinking Level')}: {thinkingLevelLabel}
+						</span>
+					</div>
+				{/if}
+
+				{#if hasActiveMode}
+					<div class="self-center ml-1.5">
+						<span
+							class="px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+						>
+							Mode: {activeModeLabel}
+						</span>
+					</div>
+				{/if}
 
 				{#if message.timestamp}
 					<div

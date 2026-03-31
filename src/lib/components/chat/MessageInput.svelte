@@ -82,6 +82,7 @@
 	import Wrench from '../icons/Wrench.svelte';
 	import Sparkles from '../icons/Sparkles.svelte';
 	import Bolt from '../icons/Bolt.svelte';
+	import Map from '../icons/Map.svelte';
 
 	import InputVariablesModal from './MessageInput/InputVariablesModal.svelte';
 	import Voice from '../icons/Voice.svelte';
@@ -155,8 +156,16 @@
 	let integrationsMenuCloseOnOutsideClick = true;
 	let showThinkingLevelMenu = false;
 	let thinkingLevel = 'medium';
+	let showModeMenu = false;
+	let activeMode = 'HUMAN_IN_LOOP';
 
 	const THINKING_LEVELS = ['low', 'medium', 'high'];
+	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'];
+	const ACTIVE_MODE_LABELS = {
+		FULL_AUTONOMY: 'Full Autonomy',
+		HUMAN_IN_LOOP: 'Human in Loop',
+		RECON_ONLY: 'Recon Only'
+	};
 
 	const normalizeThinkingLevel = (value: string) => {
 		const normalized = (value ?? '').toString().trim().toLowerCase();
@@ -177,6 +186,27 @@
 			reasoning_effort: next
 		};
 		showThinkingLevelMenu = false;
+	};
+
+	const normalizeActiveMode = (value: string) => {
+		const normalized = (value ?? '').toString().trim().toUpperCase();
+		return ACTIVE_MODES.includes(normalized) ? normalized : 'HUMAN_IN_LOOP';
+	};
+
+	$: activeMode = normalizeActiveMode(
+		((params as any)?.active_mode ??
+			($settings?.params as any)?.active_mode ??
+			'HUMAN_IN_LOOP') as string
+	);
+
+	const setActiveMode = (mode: string) => {
+		const next = normalizeActiveMode(mode);
+		activeMode = next;
+		params = {
+			...(params ?? {}),
+			active_mode: next
+		};
+		showModeMenu = false;
 	};
 
 	$: if (!showValvesModal) {
@@ -936,6 +966,13 @@
 			params = {
 				...(params ?? {}),
 				reasoning_effort: thinkingLevel
+			};
+		}
+
+		if ((params as any)?.active_mode == null) {
+			params = {
+				...(params ?? {}),
+				active_mode: activeMode
 			};
 		}
 
@@ -1758,6 +1795,54 @@
 															<span class="text-xs text-gray-500 dark:text-gray-400"
 																>{$i18n.t('Selected')}</span
 															>
+														{/if}
+													</button>
+												{/each}
+											</div>
+										</div>
+									</Dropdown>
+
+									<Dropdown bind:show={showModeMenu} align="start" sideOffset={6}>
+										<Tooltip content={`Mode: ${ACTIVE_MODE_LABELS[activeMode]}`} placement="top">
+											<button
+												type="button"
+												id="active-mode-button"
+												aria-label="Mode"
+												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full h-8 px-2.5 flex gap-1.5 justify-center items-center outline-hidden focus:outline-hidden"
+											>
+												<Map className="size-4" strokeWidth="1.75" />
+												<span
+													class="text-[10px] uppercase font-semibold tracking-wide leading-none"
+												>
+													{activeMode === 'FULL_AUTONOMY'
+														? 'A'
+														: activeMode === 'RECON_ONLY'
+															? 'R'
+															: 'H'}
+												</span>
+											</button>
+										</Tooltip>
+
+										<div slot="content">
+											<div
+												class="min-w-52 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
+											>
+												{#each ACTIVE_MODES as mode}
+													<button
+														type="button"
+														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {activeMode ===
+														mode
+															? 'bg-gray-100 dark:bg-gray-800 font-medium'
+															: 'hover:bg-gray-50 dark:hover:bg-gray-800/70'}"
+														on:click={() => setActiveMode(mode)}
+													>
+														<span class="pr-3">{ACTIVE_MODE_LABELS[mode]}</span>
+														{#if activeMode === mode}
+															<span
+																class="text-xs text-gray-500 dark:text-gray-400 bg-gray-200/70 dark:bg-gray-700/70 px-1.5 py-0.5 rounded-md"
+															>
+																Selected
+															</span>
 														{/if}
 													</button>
 												{/each}
