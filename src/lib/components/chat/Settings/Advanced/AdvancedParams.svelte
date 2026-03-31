@@ -7,12 +7,14 @@
 
 	const i18n = getContext('i18n');
 
+	type ParamsMap = Record<string, any>;
+
 	export let onChange: (params: any) => void = () => {};
 
 	export let admin = false;
 	export let custom = false;
 
-	const defaultParams = {
+	const defaultParams: ParamsMap = {
 		// Advanced
 		stream_response: null, // Set stream responses for this model individually
 		stream_delta_chunk_size: null, // Set the chunk size for streaming responses
@@ -47,7 +49,7 @@
 		num_gpu: null
 	};
 
-	export let params = defaultParams;
+	export let params: ParamsMap = { ...defaultParams };
 	const reasoningEffortLevels = ['low', 'medium', 'high'];
 
 	$: if (
@@ -62,6 +64,7 @@
 	}
 
 	$: if (params) {
+		params.custom_params = params?.custom_params ?? {};
 		onChange(params);
 	}
 </script>
@@ -1654,7 +1657,7 @@
 									placeholder={$i18n.t('Custom Parameter Name')}
 									value={key}
 									on:change={(e) => {
-										const newKey = e.target.value.trim();
+										const newKey = (e.currentTarget as HTMLInputElement).value.trim();
 										if (newKey && newKey !== key) {
 											params.custom_params[newKey] = params.custom_params[key];
 											delete params.custom_params[key];

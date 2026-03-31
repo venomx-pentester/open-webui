@@ -799,10 +799,7 @@ def apply_reasoning_effort_to_non_reasoning_model(payload: dict) -> dict:
 
     messages = payload.get('messages', [])
     if isinstance(messages, list):
-        hint = (
-            f"[Reasoning mode: {effort}] "
-            f"Use {effort} reasoning depth for this response."
-        )
+        hint = f'[Reasoning mode: {effort}] Use {effort} reasoning depth for this response.'
 
         if messages and isinstance(messages[0], dict) and messages[0].get('role') == 'system':
             current_system_content = messages[0].get('content')
@@ -813,9 +810,7 @@ def apply_reasoning_effort_to_non_reasoning_model(payload: dict) -> dict:
                     current_system_content,
                     flags=re.IGNORECASE,
                 ).strip()
-                messages[0]['content'] = (
-                    f"{hint}\n\n{updated_system_content}" if updated_system_content else hint
-                )
+                messages[0]['content'] = f'{hint}\n\n{updated_system_content}' if updated_system_content else hint
             else:
                 messages.insert(0, {'role': 'system', 'content': hint})
         else:
