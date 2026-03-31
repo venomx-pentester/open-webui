@@ -165,6 +165,15 @@ async def get_headers_and_cookies(
         if metadata and metadata.get('chat_id'):
             headers[FORWARD_SESSION_INFO_HEADER_CHAT_ID] = metadata.get('chat_id')
 
+    if metadata and metadata.get('thinking_proxy_command'):
+        headers['X-OpenWebUI-Think'] = metadata.get('thinking_proxy_command')
+    if metadata and metadata.get('thinking_level'):
+        headers['X-OpenWebUI-Think-Level'] = metadata.get('thinking_level')
+    if metadata and metadata.get('mode_proxy_command'):
+        headers['X-OpenWebUI-Mode'] = metadata.get('mode_proxy_command')
+    if metadata and metadata.get('active_mode'):
+        headers['X-OpenWebUI-Mode-Level'] = metadata.get('active_mode')
+
     token = None
     auth_type = config.get('auth_type')
 
@@ -780,6 +789,91 @@ def normalize_reasoning_effort(value, default: str = 'medium') -> str:
     return default
 
 
+def normalize_active_mode(value, default: str = 'HUMAN_IN_LOOP') -> str:
+    valid_modes = {'FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'}
+    if isinstance(value, str):
+        normalized = value.strip().upper()
+        if normalized in valid_modes:
+            return normalized
+    return default
+
+
+def get_mode_proxy_command(payload: dict) -> Optional[str]:
+    raw_mode = payload.pop('active_mode', None)
+    if raw_mode is None:
+        return None
+
+    mode = normalize_active_mode(raw_mode)
+    return f'/mode:{mode}'
+
+
+def get_thinking_proxy_command(payload: dict) -> Optional[str]:
+    raw_effort = payload.get('reasoning_effort', None)
+    if raw_effort is None:
+        return None
+
+    effort = normalize_reasoning_effort(raw_effort)
+    return f'/think:{effort}'
+
+
+def apply_proxy_commands_to_messages(payload: dict, commands: list[str]) -> dict:
+    commands = [command for command in commands if command]
+    if len(commands) == 0:
+        return payload
+
+    messages = payload.get('messages', [])
+    if not isinstance(messages, list) or len(messages) == 0:
+        return payload
+
+    target_idx = None
+    for idx in range(len(messages) - 1, -1, -1):
+        message = messages[idx]
+        if isinstance(message, dict) and message.get('role') in ('user', 'system'):
+            target_idx = idx
+            break
+
+    if target_idx is None:
+        return payload
+
+    command_prefix = ' '.join(commands)
+
+    def append_directive(text: str) -> str:
+        command_pattern = (
+            r'(?:/no_think|/think:(?:low|medium|high|\d+)|/mode:(?:full_autonomy|human_in_loop|recon_only))'
+        )
+        cleaned = re.sub(rf'^\s*(?:{command_pattern}\s*)+', '', text, flags=re.IGNORECASE)
+        cleaned = re.sub(rf'\s*(?:{command_pattern}\s*)+$', '', cleaned, flags=re.IGNORECASE).strip()
+        return f'{command_prefix} {cleaned}' if cleaned else command_prefix
+
+    target_message = messages[target_idx]
+    content = target_message.get('content', '')
+
+    if isinstance(content, str):
+        target_message['content'] = append_directive(content)
+    elif isinstance(content, list):
+        text_part_idx = None
+        for idx in range(len(content) - 1, -1, -1):
+            part = content[idx]
+            if isinstance(part, dict) and part.get('type') in ('text', 'input_text', 'output_text'):
+                text_part_idx = idx
+                break
+
+        if text_part_idx is not None and isinstance(content[text_part_idx], dict):
+            part = content[text_part_idx]
+            part['text'] = append_directive(str(part.get('text', '')))
+            content[text_part_idx] = part
+        else:
+            content.insert(0, {'type': 'text', 'text': command_prefix})
+
+        target_message['content'] = content
+    else:
+        target_message['content'] = command_prefix
+
+    messages[target_idx] = target_message
+    payload['messages'] = messages
+    return payload
+
+
 def apply_reasoning_effort_to_non_reasoning_model(payload: dict) -> dict:
     raw_effort = payload.pop('reasoning_effort', None)
     if raw_effort is None:
@@ -797,32 +891,10 @@ def apply_reasoning_effort_to_non_reasoning_model(payload: dict) -> dict:
     # Keep behavior deterministic by effort level regardless of prior max_tokens.
     payload['max_tokens'] = budget
 
-    messages = payload.get('messages', [])
-    if isinstance(messages, list):
-        hint = f'[Reasoning mode: {effort}] Use {effort} reasoning depth for this response.'
-
-        if messages and isinstance(messages[0], dict) and messages[0].get('role') == 'system':
-            current_system_content = messages[0].get('content')
-            if isinstance(current_system_content, str):
-                updated_system_content = re.sub(
-                    r'^\[Reasoning mode:\s*(low|medium|high)\][^\n]*\n*',
-                    '',
-                    current_system_content,
-                    flags=re.IGNORECASE,
-                ).strip()
-                messages[0]['content'] = f'{hint}\n\n{updated_system_content}' if updated_system_content else hint
-            else:
-                messages.insert(0, {'role': 'system', 'content': hint})
-        else:
-            messages.insert(0, {'role': 'system', 'content': hint})
-
-        payload['messages'] = messages
-
     log.debug(
-        'Applied non-reasoning reasoning_effort mapping: effort=%s max_tokens=%s prompt_hint=%s',
+        'Applied non-reasoning reasoning_effort mapping: effort=%s max_tokens=%s',
         effort,
         payload.get('max_tokens'),
-        True,
     )
     return payload
 
@@ -1178,6 +1250,18 @@ async def generate_chat_completion(
 
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
     key = request.app.state.config.OPENAI_API_KEYS[idx]
+
+    mode_proxy_command = get_mode_proxy_command(payload)
+    if mode_proxy_command:
+        metadata['mode_proxy_command'] = mode_proxy_command
+        metadata['active_mode'] = mode_proxy_command.split(':', 1)[1]
+
+    thinking_proxy_command = get_thinking_proxy_command(payload)
+    if thinking_proxy_command:
+        metadata['thinking_proxy_command'] = thinking_proxy_command
+        metadata['thinking_level'] = thinking_proxy_command.split(':', 1)[1]
+
+    payload = apply_proxy_commands_to_messages(payload, [mode_proxy_command, thinking_proxy_command])
 
     # Check if model is a reasoning model that needs special handling
     if is_openai_new_model(payload['model']):

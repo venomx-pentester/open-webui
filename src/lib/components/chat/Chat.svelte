@@ -179,6 +179,20 @@
 	let chatFiles = [];
 	let files = [];
 	let params = {};
+	const THINKING_LEVELS = ['low', 'medium', 'high'];
+	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'];
+	const getCurrentThinkingLevel = () => {
+		const rawLevel =
+			(params as any)?.reasoning_effort ?? ($settings?.params as any)?.reasoning_effort ?? 'medium';
+		const normalizedLevel = (rawLevel ?? '').toString().trim().toLowerCase();
+		return THINKING_LEVELS.includes(normalizedLevel) ? normalizedLevel : 'medium';
+	};
+	const getCurrentActiveMode = () => {
+		const rawMode =
+			(params as any)?.active_mode ?? ($settings?.params as any)?.active_mode ?? 'HUMAN_IN_LOOP';
+		const normalizedMode = (rawMode ?? '').toString().trim().toUpperCase();
+		return ACTIVE_MODES.includes(normalizedMode) ? normalizedMode : 'HUMAN_IN_LOOP';
+	};
 
 	$: if (chatIdProp) {
 		navigateHandler();
@@ -1514,6 +1528,10 @@
 				role: 'assistant',
 				content: `[RESPONSE] ${responseMessageId}`,
 				done: true,
+				info: {
+					thinking_level: getCurrentThinkingLevel(),
+					active_mode: getCurrentActiveMode()
+				},
 
 				model: modelId,
 				modelName: model.name ?? model.id,
@@ -1977,6 +1995,10 @@
 					childrenIds: [],
 					role: 'assistant',
 					content: '',
+					info: {
+						thinking_level: getCurrentThinkingLevel(),
+						active_mode: getCurrentActiveMode()
+					},
 					model: model.id,
 					modelName: model.name ?? model.id,
 					modelIdx: modelIdx ? modelIdx : _modelIdx,
