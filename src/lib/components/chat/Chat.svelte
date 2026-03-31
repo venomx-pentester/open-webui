@@ -2301,6 +2301,11 @@
 					)
 				},
 				model_item: $models.find((m) => m.id === model.id),
+				metadata: {
+					chat_id: $chatId,
+					session_id: $socket?.id,
+					message_id: responseMessageId
+				},
 
 				session_id: $socket?.id,
 				chat_id: $chatId,
