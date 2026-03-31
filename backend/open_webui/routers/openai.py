@@ -1078,6 +1078,22 @@ async def generate_chat_completion(
 
     payload = {**form_data}
     metadata = payload.pop('metadata', None)
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    # Support clients that send chat/session identifiers at the top level.
+    # This keeps metadata-based logging and forwarding headers consistent.
+    chat_id = payload.pop('chat_id', None)
+    if chat_id and not metadata.get('chat_id'):
+        metadata['chat_id'] = chat_id
+
+    session_id = payload.pop('session_id', None)
+    if session_id and not metadata.get('session_id'):
+        metadata['session_id'] = session_id
+
+    message_id = payload.pop('id', None)
+    if message_id and not metadata.get('message_id'):
+        metadata['message_id'] = message_id
 
     model_id = form_data.get('model')
     model_info = Models.get_model_by_id(model_id)
