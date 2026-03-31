@@ -164,7 +164,9 @@
 	};
 
 	$: thinkingLevel = normalizeThinkingLevel(
-		((params as any)?.reasoning_effort ?? ($settings?.params as any)?.reasoning_effort ?? 'medium') as string
+		((params as any)?.reasoning_effort ??
+			($settings?.params as any)?.reasoning_effort ??
+			'medium') as string
 	);
 
 	const setThinkingLevel = (level: string) => {
@@ -1717,7 +1719,9 @@
 									<Dropdown bind:show={showThinkingLevelMenu} align="start" sideOffset={6}>
 										<Tooltip
 											content={$i18n.t('Thinking Level: {{LEVEL}}', {
-												LEVEL: $i18n.t(thinkingLevel.charAt(0).toUpperCase() + thinkingLevel.slice(1))
+												LEVEL: $i18n.t(
+													thinkingLevel.charAt(0).toUpperCase() + thinkingLevel.slice(1)
+												)
 											})}
 											placement="top"
 										>
@@ -1728,7 +1732,9 @@
 												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full h-8 px-2.5 flex gap-1.5 justify-center items-center outline-hidden focus:outline-hidden"
 											>
 												<Bolt className="size-4" strokeWidth="1.75" />
-												<span class="text-[10px] uppercase font-semibold tracking-wide leading-none">
+												<span
+													class="text-[10px] uppercase font-semibold tracking-wide leading-none"
+												>
 													{thinkingLevel.charAt(0)}
 												</span>
 											</button>
@@ -1741,14 +1747,17 @@
 												{#each THINKING_LEVELS as level}
 													<button
 														type="button"
-														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {thinkingLevel === level
+														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {thinkingLevel ===
+														level
 															? 'bg-gray-100 dark:bg-gray-800 font-medium'
 															: 'hover:bg-gray-50 dark:hover:bg-gray-800/70'}"
 														on:click={() => setThinkingLevel(level)}
 													>
 														<span>{$i18n.t(level.charAt(0).toUpperCase() + level.slice(1))}</span>
 														{#if thinkingLevel === level}
-															<span class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Selected')}</span>
+															<span class="text-xs text-gray-500 dark:text-gray-400"
+																>{$i18n.t('Selected')}</span
+															>
 														{/if}
 													</button>
 												{/each}

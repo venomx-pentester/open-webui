@@ -59,7 +59,10 @@
 		params.reasoning_effort = 'medium';
 	}
 
-	$: if ((params?.reasoning_effort ?? null) !== null && typeof params.reasoning_effort === 'string') {
+	$: if (
+		(params?.reasoning_effort ?? null) !== null &&
+		typeof params.reasoning_effort === 'string'
+	) {
 		params.reasoning_effort = params.reasoning_effort.toLowerCase();
 	}
 
@@ -437,7 +440,9 @@
 						bind:value={params.reasoning_effort}
 					>
 						{#each reasoningEffortLevels as level}
-							<option value={level}>{$i18n.t(level.charAt(0).toUpperCase() + level.slice(1))}</option>
+							<option value={level}
+								>{$i18n.t(level.charAt(0).toUpperCase() + level.slice(1))}</option
+							>
 						{/each}
 					</select>
 				</div>
