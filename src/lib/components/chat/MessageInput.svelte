@@ -156,8 +156,10 @@
 	let integrationsMenuCloseOnOutsideClick = true;
 	let showThinkingLevelMenu = false;
 	let thinkingLevel = 'medium';
+	let thinkingLevelFocusIndex = 0;
 	let showModeMenu = false;
 	let activeMode = 'HUMAN_IN_LOOP';
+	let modeFocusIndex = 0;
 
 	const THINKING_LEVELS = ['low', 'medium', 'high'];
 	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'];
@@ -188,6 +190,84 @@
 		showThinkingLevelMenu = false;
 	};
 
+	const getWrappedIndex = (current: number, delta: number, total: number) => {
+		if (total <= 0) return 0;
+		return (current + delta + total) % total;
+	};
+
+	const focusThinkingLevelOption = async (index: number) => {
+		await tick();
+		const option = document.getElementById(
+			`thinking-level-option-${index}`
+		) as HTMLButtonElement | null;
+		option?.focus();
+	};
+
+	const handleThinkingLevelMenuKeydown = async (event: KeyboardEvent) => {
+		if (!showThinkingLevelMenu) return;
+
+		switch (event.key) {
+			case 'ArrowDown': {
+				event.preventDefault();
+				thinkingLevelFocusIndex = getWrappedIndex(
+					thinkingLevelFocusIndex,
+					1,
+					THINKING_LEVELS.length
+				);
+				await focusThinkingLevelOption(thinkingLevelFocusIndex);
+				break;
+			}
+			case 'ArrowUp': {
+				event.preventDefault();
+				thinkingLevelFocusIndex = getWrappedIndex(
+					thinkingLevelFocusIndex,
+					-1,
+					THINKING_LEVELS.length
+				);
+				await focusThinkingLevelOption(thinkingLevelFocusIndex);
+				break;
+			}
+			case 'Home': {
+				event.preventDefault();
+				thinkingLevelFocusIndex = 0;
+				await focusThinkingLevelOption(thinkingLevelFocusIndex);
+				break;
+			}
+			case 'End': {
+				event.preventDefault();
+				thinkingLevelFocusIndex = THINKING_LEVELS.length - 1;
+				await focusThinkingLevelOption(thinkingLevelFocusIndex);
+				break;
+			}
+			case 'Enter':
+			case ' ': {
+				event.preventDefault();
+				setThinkingLevel(THINKING_LEVELS[thinkingLevelFocusIndex]);
+				break;
+			}
+			case 'Escape': {
+				event.preventDefault();
+				showThinkingLevelMenu = false;
+				(document.getElementById('thinking-level-button') as HTMLButtonElement | null)?.focus();
+				break;
+			}
+		}
+	};
+
+	const handleThinkingLevelTriggerKeydown = (event: KeyboardEvent) => {
+		if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+
+		event.preventDefault();
+		const currentIndex = Math.max(THINKING_LEVELS.indexOf(thinkingLevel), 0);
+		thinkingLevelFocusIndex = getWrappedIndex(
+			currentIndex,
+			event.key === 'ArrowDown' ? 1 : -1,
+			THINKING_LEVELS.length
+		);
+		showThinkingLevelMenu = true;
+		tick().then(() => focusThinkingLevelOption(thinkingLevelFocusIndex));
+	};
+
 	const normalizeActiveMode = (value: string) => {
 		const normalized = (value ?? '').toString().trim().toUpperCase();
 		return ACTIVE_MODES.includes(normalized) ? normalized : 'HUMAN_IN_LOOP';
@@ -207,6 +287,71 @@
 			active_mode: next
 		};
 		showModeMenu = false;
+	};
+
+	const focusModeOption = async (index: number) => {
+		await tick();
+		const option = document.getElementById(
+			`active-mode-option-${index}`
+		) as HTMLButtonElement | null;
+		option?.focus();
+	};
+
+	const handleModeMenuKeydown = async (event: KeyboardEvent) => {
+		if (!showModeMenu) return;
+
+		switch (event.key) {
+			case 'ArrowDown': {
+				event.preventDefault();
+				modeFocusIndex = getWrappedIndex(modeFocusIndex, 1, ACTIVE_MODES.length);
+				await focusModeOption(modeFocusIndex);
+				break;
+			}
+			case 'ArrowUp': {
+				event.preventDefault();
+				modeFocusIndex = getWrappedIndex(modeFocusIndex, -1, ACTIVE_MODES.length);
+				await focusModeOption(modeFocusIndex);
+				break;
+			}
+			case 'Home': {
+				event.preventDefault();
+				modeFocusIndex = 0;
+				await focusModeOption(modeFocusIndex);
+				break;
+			}
+			case 'End': {
+				event.preventDefault();
+				modeFocusIndex = ACTIVE_MODES.length - 1;
+				await focusModeOption(modeFocusIndex);
+				break;
+			}
+			case 'Enter':
+			case ' ': {
+				event.preventDefault();
+				setActiveMode(ACTIVE_MODES[modeFocusIndex]);
+				break;
+			}
+			case 'Escape': {
+				event.preventDefault();
+				showModeMenu = false;
+				(document.getElementById('active-mode-button') as HTMLButtonElement | null)?.focus();
+				break;
+			}
+		}
+	};
+
+	const handleModeTriggerKeydown = (event: KeyboardEvent) => {
+		if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+
+		event.preventDefault();
+		const currentIndex = Math.max(ACTIVE_MODES.indexOf(activeMode), 0);
+		modeFocusIndex = getWrappedIndex(
+			currentIndex,
+			event.key === 'ArrowDown' ? 1 : -1,
+			ACTIVE_MODES.length
+		);
+		showModeMenu = true;
+		tick().then(() => focusModeOption(modeFocusIndex));
 	};
 
 	$: if (!showValvesModal) {
@@ -1766,7 +1911,20 @@
 												type="button"
 												id="thinking-level-button"
 												aria-label={$i18n.t('Thinking Level')}
+												aria-haspopup="menu"
+												aria-expanded={showThinkingLevelMenu}
+												aria-controls="thinking-level-menu"
 												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full h-8 px-2.5 flex gap-1.5 justify-center items-center outline-hidden focus:outline-hidden"
+												on:click={() => {
+													thinkingLevelFocusIndex = Math.max(
+														THINKING_LEVELS.indexOf(thinkingLevel),
+														0
+													);
+													if (!showThinkingLevelMenu) {
+														tick().then(() => focusThinkingLevelOption(thinkingLevelFocusIndex));
+													}
+												}}
+												on:keydown={handleThinkingLevelTriggerKeydown}
 											>
 												<Bolt className="size-4" strokeWidth="1.75" />
 												<span
@@ -1779,15 +1937,26 @@
 
 										<div slot="content">
 											<div
+												id="thinking-level-menu"
 												class="min-w-36 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
+												role="menu"
+												tabindex="-1"
+												aria-label={$i18n.t('Thinking Level')}
+												on:keydown={handleThinkingLevelMenuKeydown}
 											>
-												{#each THINKING_LEVELS as level}
+												{#each THINKING_LEVELS as level, idx}
 													<button
 														type="button"
+														id={`thinking-level-option-${idx}`}
+														role="menuitemradio"
+														aria-checked={thinkingLevel === level}
 														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {thinkingLevel ===
 														level
 															? 'bg-gray-100 dark:bg-gray-800 font-medium'
 															: 'hover:bg-gray-50 dark:hover:bg-gray-800/70'}"
+														on:focus={() => {
+															thinkingLevelFocusIndex = idx;
+														}}
 														on:click={() => setThinkingLevel(level)}
 													>
 														<span>{$i18n.t(level.charAt(0).toUpperCase() + level.slice(1))}</span>
@@ -1808,7 +1977,17 @@
 												type="button"
 												id="active-mode-button"
 												aria-label="Mode"
+												aria-haspopup="menu"
+												aria-expanded={showModeMenu}
+												aria-controls="active-mode-menu"
 												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full h-8 px-2.5 flex gap-1.5 justify-center items-center outline-hidden focus:outline-hidden"
+												on:click={() => {
+													modeFocusIndex = Math.max(ACTIVE_MODES.indexOf(activeMode), 0);
+													if (!showModeMenu) {
+														tick().then(() => focusModeOption(modeFocusIndex));
+													}
+												}}
+												on:keydown={handleModeTriggerKeydown}
 											>
 												<Map className="size-4" strokeWidth="1.75" />
 												<span
@@ -1825,15 +2004,26 @@
 
 										<div slot="content">
 											<div
+												id="active-mode-menu"
 												class="min-w-52 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
+												role="menu"
+												tabindex="-1"
+												aria-label="Mode"
+												on:keydown={handleModeMenuKeydown}
 											>
-												{#each ACTIVE_MODES as mode}
+												{#each ACTIVE_MODES as mode, idx}
 													<button
 														type="button"
+														id={`active-mode-option-${idx}`}
+														role="menuitemradio"
+														aria-checked={activeMode === mode}
 														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {activeMode ===
 														mode
 															? 'bg-gray-100 dark:bg-gray-800 font-medium'
 															: 'hover:bg-gray-50 dark:hover:bg-gray-800/70'}"
+														on:focus={() => {
+															modeFocusIndex = idx;
+														}}
 														on:click={() => setActiveMode(mode)}
 													>
 														<span class="pr-3">{ACTIVE_MODE_LABELS[mode]}</span>
