@@ -1162,16 +1162,23 @@ except Exception as e:
 if default_prompt_suggestions == []:
     default_prompt_suggestions = [
         {
-            'title': ['Nmap scan plan'],
-            'content': 'Draft an Nmap scan plan for 10.0.0.0/24 (authorized testing)',
+            'title': ['Authorized recon plan'],
+            'content': 'Draft a safe reconnaissance plan for an authorized security assessment of a web application.',
         },
         {
-            'title': ['Common pentest findings'],
-            'content': 'Summarize common findings and remediations for a web app pentest',
+            'title': ['Threat model review'],
+            'content': 'Threat model this login and session flow, then list the highest-risk abuse cases and defenses.',
         },
         {
-            'title': ['Pentest report template'],
-            'content': 'Create a pentest report template with severity ratings',
+            'title': ['Finding write-up'],
+            'content': 'Write a concise pentest finding with impact, evidence, risk rating, and remediation steps.',
+        },
+        {
+            'title': ['OWASP test ideas'],
+            'content': (
+                'Suggest authorized OWASP-style test cases for input validation, '
+                'access control, and authentication.'
+            ),
         },
     ]
 
