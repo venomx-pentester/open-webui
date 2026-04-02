@@ -2834,7 +2834,7 @@
 
 			<div class="w-full h-full flex flex-row-reverse gap-2 px-2 pb-2">
 				{#if showTargetSidebar}
-					<div class="hidden xl:block h-full shrink-0">
+					<div class="block h-full shrink-0">
 						<TargetStatusSidebar
 							onClose={() => {
 								showTargetSidebar = false;

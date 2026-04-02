@@ -121,12 +121,12 @@
 				</div>
 
 				<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
-					{#if showTargetToggle && !targetSidebarVisible}
+					{#if showTargetToggle}
 						<Tooltip
 							content={targetSidebarVisible ? $i18n.t('Hide Targets') : $i18n.t('Show Targets')}
 						>
 							<button
-								class="hidden xl:flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+								class="flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
 								aria-label={targetSidebarVisible
 									? $i18n.t('Hide Targets')
 									: $i18n.t('Show Targets')}
