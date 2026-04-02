@@ -1176,8 +1176,7 @@ if default_prompt_suggestions == []:
         {
             'title': ['OWASP test ideas'],
             'content': (
-                'Suggest authorized OWASP-style test cases for input validation, '
-                'access control, and authentication.'
+                'Suggest authorized OWASP-style test cases for input validation, access control, and authentication.'
             ),
         },
     ]
