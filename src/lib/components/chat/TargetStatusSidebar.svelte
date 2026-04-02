@@ -31,7 +31,7 @@
 </script>
 
 <aside
-	class="h-full w-72 max-w-[18rem] rounded-2xl border border-sky-100/80 dark:border-sky-900/55 bg-white/70 dark:bg-slate-950/55 backdrop-blur-md shadow-sm p-2.5 flex flex-col overflow-hidden"
+	class="h-full w-72 max-w-[18rem] rounded-2xl border border-sky-100/80 dark:border-sky-900/55 bg-white/70 dark:bg-slate-950/55 backdrop-blur-md shadow-sm p-2.5 flex flex-col overflow-y-auto scrollbar-hidden"
 	aria-label={$i18n.t('Target Status Sidebar')}
 >
 	<div
@@ -60,7 +60,7 @@
 	</div>
 
 	{#if !$isScanQueueRunning}
-		<div class="mt-2 min-h-0 overflow-y-auto scrollbar-hidden pr-0.5 space-y-1.5">
+		<div class="mt-2 min-h-0 max-h-56 overflow-y-auto scrollbar-hidden pr-0.5 space-y-1.5">
 			{#each $targets as target (target.id)}
 				<TargetStatusSidebarItem
 					{target}
