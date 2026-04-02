@@ -1911,6 +1911,9 @@
 												type="button"
 												id="thinking-level-button"
 												aria-label={$i18n.t('Thinking Level')}
+												aria-haspopup="menu"
+												aria-expanded={showThinkingLevelMenu}
+												aria-controls="thinking-level-menu"
 												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full h-8 px-2.5 flex gap-1.5 justify-center items-center outline-hidden focus:outline-hidden"
 												on:click={() => {
 													thinkingLevelFocusIndex = Math.max(
@@ -1934,6 +1937,7 @@
 
 										<div slot="content">
 											<div
+												id="thinking-level-menu"
 												class="min-w-36 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 												role="menu"
 												tabindex="-1"
@@ -1944,6 +1948,8 @@
 													<button
 														type="button"
 														id={`thinking-level-option-${idx}`}
+														role="menuitemradio"
+														aria-checked={thinkingLevel === level}
 														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {thinkingLevel ===
 														level
 															? 'bg-gray-100 dark:bg-gray-800 font-medium'
@@ -1971,6 +1977,9 @@
 												type="button"
 												id="active-mode-button"
 												aria-label="Mode"
+												aria-haspopup="menu"
+												aria-expanded={showModeMenu}
+												aria-controls="active-mode-menu"
 												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full h-8 px-2.5 flex gap-1.5 justify-center items-center outline-hidden focus:outline-hidden"
 												on:click={() => {
 													modeFocusIndex = Math.max(ACTIVE_MODES.indexOf(activeMode), 0);
@@ -1995,6 +2004,7 @@
 
 										<div slot="content">
 											<div
+												id="active-mode-menu"
 												class="min-w-52 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 												role="menu"
 												tabindex="-1"
@@ -2005,6 +2015,8 @@
 													<button
 														type="button"
 														id={`active-mode-option-${idx}`}
+														role="menuitemradio"
+														aria-checked={activeMode === mode}
 														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {activeMode ===
 														mode
 															? 'bg-gray-100 dark:bg-gray-800 font-medium'
