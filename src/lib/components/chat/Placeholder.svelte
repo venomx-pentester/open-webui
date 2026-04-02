@@ -339,7 +339,7 @@
 	}
 
 	.landing-card
-		:global(#message-input-container :is(svg, [class*='text-gray'], [class*='dark:text-gray'])) {
+		:global(#message-input-container :is([class*='text-gray'], [class*='dark:text-gray'])) {
 		color: var(--vx-text) !important;
 	}
 
