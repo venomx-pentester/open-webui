@@ -1941,7 +1941,7 @@
 												class="min-w-36 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 												role="menu"
 												tabindex="-1"
-												aria-label={$i18n.t('Thinking Level options')}
+												aria-label={$i18n.t('Thinking Level')}
 												on:keydown={handleThinkingLevelMenuKeydown}
 											>
 												{#each THINKING_LEVELS as level, idx}
@@ -2008,7 +2008,7 @@
 												class="min-w-52 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 												role="menu"
 												tabindex="-1"
-												aria-label={$i18n.t('Mode options')}
+												aria-label="Mode"
 												on:keydown={handleModeMenuKeydown}
 											>
 												{#each ACTIVE_MODES as mode, idx}
