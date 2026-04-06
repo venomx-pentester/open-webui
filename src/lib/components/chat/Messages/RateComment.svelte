@@ -28,6 +28,7 @@
 		'too_verbose',
 		'not_helpful',
 		'not_factually_correct',
+		'false_positive_on_guard',
 		'didnt_fully_follow_instructions',
 		'refused_when_it_shouldnt_have',
 		'being_lazy',
@@ -198,6 +199,8 @@
 							{$i18n.t('Not helpful')}
 						{:else if reason === 'not_factually_correct'}
 							{$i18n.t('Not factually correct')}
+						{:else if reason === 'false_positive_on_guard'}
+							{$i18n.t('False Positive on Guard')}
 						{:else if reason === 'didnt_fully_follow_instructions'}
 							{$i18n.t("Didn't fully follow instructions")}
 						{:else if reason === 'refused_when_it_shouldnt_have'}

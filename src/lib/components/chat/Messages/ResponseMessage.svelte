@@ -181,7 +181,7 @@
 		? `${thinkingLevel.charAt(0).toUpperCase()}${thinkingLevel.slice(1)}`
 		: '';
 	$: activeMode = (message?.info?.active_mode ?? '').toString().toUpperCase();
-	$: hasActiveMode = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'].includes(activeMode);
+	$: hasActiveMode = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY', 'ASK'].includes(activeMode);
 	$: activeModeLabel =
 		activeMode === 'FULL_AUTONOMY'
 			? 'Full Autonomy'
@@ -189,7 +189,9 @@
 				? 'Recon Only'
 				: activeMode === 'HUMAN_IN_LOOP'
 					? 'Human in Loop'
-					: '';
+					: activeMode === 'ASK'
+						? 'Ask'
+						: '';
 
 	let edit = false;
 	let editedContent = '';

@@ -92,7 +92,20 @@
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { getFunctions } from '$lib/apis/functions';
 	import { updateFolderById } from '$lib/apis/folders';
-	import { activeQueueTargetId, createPromptTarget, isScanQueueRunning } from '$lib/stores/targets';
+	import {
+		activeQueueTargetId,
+		activeTarget,
+		createPromptTarget,
+		isScanQueueRunning,
+		queueTargetScan,
+		setActiveTarget,
+		startScanQueue,
+		targets
+	} from '$lib/stores/targets';
+	import {
+		isOfficialSlashCommand,
+		parseSlashCommand
+	} from '$lib/components/chat/MessageInput/Commands/slashCommands';
 	import {
 		applyScanSessionDelta,
 		applyScanSessionStatusEvent,
@@ -180,7 +193,7 @@
 	let files = [];
 	let params = {};
 	const THINKING_LEVELS = ['low', 'medium', 'high'];
-	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'];
+	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY', 'ASK'];
 	const getCurrentThinkingLevel = () => {
 		const rawLevel =
 			(params as any)?.reasoning_effort ?? ($settings?.params as any)?.reasoning_effort ?? 'medium';
@@ -1820,6 +1833,56 @@
 	const submitPrompt = async (userPrompt, { _raw = false } = {}) => {
 		console.log('submitPrompt', userPrompt, $chatId);
 
+		const queueScanForTargetValue = (targetValue: string) => {
+			const normalizedTarget = (targetValue ?? '').trim().toLowerCase();
+			if (!normalizedTarget) {
+				return null;
+			}
+
+			const existingTarget = get(targets).find(
+				(target) => target.value.trim().toLowerCase() === normalizedTarget
+			);
+
+			if (existingTarget) {
+				setActiveTarget(existingTarget.id);
+				queueTargetScan(existingTarget.id);
+				if (!get(isScanQueueRunning)) {
+					startScanQueue();
+				}
+				return existingTarget.id;
+			}
+
+			return createPromptTarget(targetValue);
+		};
+
+		let handledViaTargetCommand = false;
+		const slashCommand = parseSlashCommand(userPrompt);
+		if (slashCommand.isSlash) {
+			if (!isOfficialSlashCommand(slashCommand.name)) {
+				toast.error(
+					$i18n.t('Unsupported slash command. Please choose from the official command list.')
+				);
+				return;
+			}
+
+			if (slashCommand.name === 'pentest') {
+				const inlineTarget = (slashCommand.args ?? '').trim();
+				const fallbackTarget = get(activeTarget)?.value?.trim() ?? '';
+				const resolvedTarget = inlineTarget || fallbackTarget;
+
+				if (!resolvedTarget) {
+					toast.error(
+						$i18n.t('Choose a target first or pass one explicitly, e.g. /pentest 10.16.101.103')
+					);
+					return;
+				}
+
+				userPrompt = `/pentest ${resolvedTarget}`;
+				queueScanForTargetValue(resolvedTarget);
+				handledViaTargetCommand = true;
+			}
+		}
+
 		const _selectedModels = selectedModels.map((modelId) =>
 			$models.map((m) => m.id).includes(modelId) ? modelId : ''
 		);
@@ -1898,7 +1961,9 @@
 			}
 		}
 
-		createPromptTarget(userPrompt);
+		if (!handledViaTargetCommand) {
+			createPromptTarget(userPrompt);
+		}
 
 		messageInput?.setText('');
 		prompt = '';

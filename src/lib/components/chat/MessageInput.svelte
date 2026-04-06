@@ -36,7 +36,6 @@
 		TTSWorker,
 		temporaryChatEnabled
 	} from '$lib/stores';
-
 	import {
 		convertHeicToJpeg,
 		compressImage,
@@ -162,11 +161,23 @@
 	let modeFocusIndex = 0;
 
 	const THINKING_LEVELS = ['low', 'medium', 'high'];
-	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'];
+	const ACTIVE_MODES = ['FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY', 'ASK'];
 	const ACTIVE_MODE_LABELS = {
 		FULL_AUTONOMY: 'Full Autonomy',
 		HUMAN_IN_LOOP: 'Human in Loop',
-		RECON_ONLY: 'Recon Only'
+		RECON_ONLY: 'Recon Only',
+		ASK: 'Ask'
+	};
+	const ACTIVE_MODE_DESCRIPTIONS = {
+		FULL_AUTONOMY: 'Run multi-step actions end to end.',
+		HUMAN_IN_LOOP: 'Pause for approval before actions.',
+		RECON_ONLY: 'Map the target without touching it.',
+		ASK: 'Just answer questions and stay non-action based.'
+	};
+	const THINKING_LEVEL_FILL = {
+		low: 0,
+		medium: 50,
+		high: 100
 	};
 
 	const normalizeThinkingLevel = (value: string) => {
@@ -695,6 +706,7 @@
 
 	let showToolsButton = false;
 	$: showToolsButton = ($tools ?? []).length > 0 || ($toolServers ?? []).length > 0;
+	let showIntegrationsMenuButton = false;
 
 	let showWebSearchButton = false;
 	$: showWebSearchButton =
@@ -1839,7 +1851,7 @@
 										</div>
 									</InputMenu>
 
-									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
+									{#if showIntegrationsMenuButton && (showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0))}
 										<div
 											class="flex self-center w-[1px] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50"
 										/>
@@ -1926,7 +1938,11 @@
 												}}
 												on:keydown={handleThinkingLevelTriggerKeydown}
 											>
-												<Bolt className="size-4" strokeWidth="1.75" />
+												<Bolt
+													className="size-4 text-amber-500/75 dark:text-amber-300/80"
+													strokeWidth="1.75"
+													fillPercent={THINKING_LEVEL_FILL[thinkingLevel] ?? 0}
+												/>
 												<span
 													class="text-[10px] uppercase font-semibold tracking-wide leading-none"
 												>
@@ -1994,10 +2010,12 @@
 													class="text-[10px] uppercase font-semibold tracking-wide leading-none"
 												>
 													{activeMode === 'FULL_AUTONOMY'
-														? 'A'
+														? 'F'
 														: activeMode === 'RECON_ONLY'
 															? 'R'
-															: 'H'}
+															: activeMode === 'ASK'
+																? 'A'
+																: 'H'}
 												</span>
 											</button>
 										</Tooltip>
@@ -2005,7 +2023,7 @@
 										<div slot="content">
 											<div
 												id="active-mode-menu"
-												class="min-w-52 rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
+												class="w-72 max-w-[calc(100vw-1rem)] rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 												role="menu"
 												tabindex="-1"
 												aria-label="Mode"
@@ -2017,7 +2035,7 @@
 														id={`active-mode-option-${idx}`}
 														role="menuitemradio"
 														aria-checked={activeMode === mode}
-														class="w-full flex items-center justify-between px-2.5 py-1.5 text-sm rounded-lg transition {activeMode ===
+														class="w-full px-2.5 py-2 text-sm rounded-lg transition {activeMode ===
 														mode
 															? 'bg-gray-100 dark:bg-gray-800 font-medium'
 															: 'hover:bg-gray-50 dark:hover:bg-gray-800/70'}"
@@ -2026,14 +2044,25 @@
 														}}
 														on:click={() => setActiveMode(mode)}
 													>
-														<span class="pr-3">{ACTIVE_MODE_LABELS[mode]}</span>
-														{#if activeMode === mode}
+														<span class="flex w-full items-start gap-3 text-left">
+															<span class="min-w-0 flex-1 flex flex-col items-start leading-tight">
+																<span class="block font-medium">{ACTIVE_MODE_LABELS[mode]}</span>
+																<span
+																	class="block text-xs text-gray-500 dark:text-gray-400 font-normal"
+																>
+																	{ACTIVE_MODE_DESCRIPTIONS[mode]}
+																</span>
+															</span>
 															<span
-																class="text-xs text-gray-500 dark:text-gray-400 bg-gray-200/70 dark:bg-gray-700/70 px-1.5 py-0.5 rounded-md"
+																class="shrink-0 text-xs px-1.5 py-0.5 rounded-md whitespace-nowrap {activeMode ===
+																mode
+																	? 'text-gray-600 dark:text-gray-200 bg-gray-200/70 dark:bg-gray-700/70'
+																	: 'opacity-0'}"
+																aria-hidden={activeMode !== mode}
 															>
 																Selected
 															</span>
-														{/if}
+														</span>
 													</button>
 												{/each}
 											</div>
