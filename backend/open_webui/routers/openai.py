@@ -790,7 +790,7 @@ def normalize_reasoning_effort(value, default: str = 'medium') -> str:
 
 
 def normalize_active_mode(value, default: str = 'HUMAN_IN_LOOP') -> str:
-    valid_modes = {'FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY'}
+    valid_modes = {'FULL_AUTONOMY', 'HUMAN_IN_LOOP', 'RECON_ONLY', 'ASK'}
     if isinstance(value, str):
         normalized = value.strip().upper()
         if normalized in valid_modes:
@@ -839,7 +839,7 @@ def apply_proxy_commands_to_messages(payload: dict, commands: list[str]) -> dict
 
     def append_directive(text: str) -> str:
         command_pattern = (
-            r'(?:/no_think|/think:(?:low|medium|high|\d+)|/mode:(?:full_autonomy|human_in_loop|recon_only))'
+            r'(?:/no_think|/think:(?:low|medium|high|\d+)|/mode:(?:full_autonomy|human_in_loop|recon_only|ask))'
         )
         cleaned = re.sub(rf'^\s*(?:{command_pattern}\s*)+', '', text, flags=re.IGNORECASE)
         cleaned = re.sub(rf'\s*(?:{command_pattern}\s*)+$', '', cleaned, flags=re.IGNORECASE).strip()

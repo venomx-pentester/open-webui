@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Prompts from './Commands/Prompts.svelte';
+	import SlashCommands from './Commands/SlashCommands.svelte';
 	import Knowledge from './Commands/Knowledge.svelte';
 	import Models from './Commands/Models.svelte';
 	import Skills from './Commands/Skills.svelte';
@@ -59,15 +59,15 @@
 >
 	<div class="overflow-y-auto scrollbar-thin max-h-60">
 		{#if char === '/'}
-			<Prompts
+			<SlashCommands
 				bind:this={suggestionElement}
 				{query}
 				bind:filteredItems
 				onSelect={(e) => {
 					const { type, data } = e;
 
-					if (type === 'prompt') {
-						insertTextHandler(data.content);
+					if (type === 'slash-command') {
+						insertTextHandler(`${data.command} `);
 					}
 				}}
 			/>
