@@ -95,6 +95,7 @@
 	import {
 		activeQueueTargetId,
 		activeTarget,
+		activeTargetId,
 		createPromptTarget,
 		isScanQueueRunning,
 		queueTargetScan,
@@ -109,8 +110,17 @@
 	import {
 		applyScanSessionDelta,
 		applyScanSessionStatusEvent,
-		completeScanSession
+		completeScanSession,
+		setAgentRunId
 	} from '$lib/stores/scanSessions';
+	import {
+		clearAgentHandshake,
+		connectToRun,
+		disconnectRun,
+		hasAgentHandshake,
+		isConnected,
+		registerAgentHandshake
+	} from '$lib/stores/agentRunnerStream';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -127,6 +137,9 @@
 	import Image from '../common/Image.svelte';
 	import { getBanners } from '$lib/apis/configs';
 	import TargetStatusSidebar from './TargetStatusSidebar.svelte';
+	import PhaseApprovalDialog from './PhaseApprovalDialog.svelte';
+	import { scanSessions } from '$lib/stores/scanSessions';
+	import { activeRunTargetId } from '$lib/stores/agentRunnerStream';
 
 	export let chatIdProp = '';
 
@@ -141,6 +154,7 @@
 	let autoScroll = true;
 	let processing = '';
 	let showTargetSidebar = false;
+	let showApprovalDialog = false;
 	let messagesContainerElement: HTMLDivElement;
 
 	let navbarElement;
@@ -153,6 +167,17 @@
 	let eventConfirmationInputValue = '';
 	let eventConfirmationInputType = '';
 	let eventCallback = null;
+
+	$: agentUiTargetId =
+		$activeRunTargetId ?? $activeQueueTargetId ?? $activeTargetId;
+	$: approvalTargetSession = agentUiTargetId
+		? $scanSessions[agentUiTargetId] ?? null
+		: null;
+	$: if (approvalTargetSession?.lifecycle === 'paused' && !approvalTargetSession.reviewed) {
+		showApprovalDialog = true;
+	} else {
+		showApprovalDialog = false;
+	}
 
 	let selectedModels = [''];
 	let atSelectedModel: Model | undefined;
@@ -455,6 +480,24 @@
 		}
 
 		return $activeQueueTargetId;
+	};
+
+	const RUN_ID_RE = /\*\*Run ID:\*\*\s*`([0-9a-f]{32})`/;
+
+	const tryConnectAgentStream = (targetId: string, content: string) => {
+		if (hasAgentHandshake(targetId) || isConnected(targetId)) {
+			return;
+		}
+		const match = content.match(RUN_ID_RE);
+		if (match) {
+			const runId = match[1];
+			setAgentRunId(targetId, runId);
+			registerAgentHandshake(targetId);
+			connectToRun(targetId, runId);
+			if (!showTargetSidebar) {
+				showTargetSidebar = true;
+			}
+		}
 	};
 
 	const chatEventHandler = async (event, cb) => {
@@ -1650,7 +1693,7 @@
 
 		if (error) {
 			await handleOpenAIError(error, message);
-			if (trackedTargetId) {
+			if (trackedTargetId && !isConnected(trackedTargetId)) {
 				completeScanSession(trackedTargetId, {
 					errorMessage: 'Model response failed while processing this target.'
 				});
@@ -1752,7 +1795,10 @@
 		}
 
 		if (trackedTargetId && contentChanged) {
-			applyScanSessionDelta(trackedTargetId, message.content?.length ?? 0);
+			tryConnectAgentStream(trackedTargetId, message.content ?? '');
+			if (!isConnected(trackedTargetId)) {
+				applyScanSessionDelta(trackedTargetId, message.content?.length ?? 0);
+			}
 		}
 
 		history.messages[message.id] = message;
@@ -1760,7 +1806,7 @@
 		if (done) {
 			message.done = true;
 
-			if (trackedTargetId) {
+			if (trackedTargetId && !isConnected(trackedTargetId)) {
 				completeScanSession(trackedTargetId);
 			}
 
@@ -2520,7 +2566,7 @@
 		history.messages[responseMessage.id] = responseMessage;
 
 		const trackedTargetId = getTrackedTargetId();
-		if (trackedTargetId) {
+		if (trackedTargetId && !isConnected(trackedTargetId)) {
 			completeScanSession(trackedTargetId, {
 				errorMessage: 'Model response encountered an error for this target.'
 			});
@@ -2556,9 +2602,13 @@
 		}
 
 		if (trackedTargetId) {
+			if (isConnected(trackedTargetId)) {
+				disconnectRun(trackedTargetId);
+			}
 			completeScanSession(trackedTargetId, {
 				errorMessage: 'Model response was stopped before completion.'
 			});
+			clearAgentHandshake(trackedTargetId);
 		}
 
 		if (generating) {
@@ -2894,6 +2944,15 @@
 
 				<div
 					class="absolute top-0 left-0 w-full h-full bg-linear-to-t from-white to-white/85 dark:from-gray-900 dark:to-gray-900/90 z-0"
+				/>
+			{/if}
+
+			{#if showApprovalDialog && agentUiTargetId}
+				<PhaseApprovalDialog
+					targetId={agentUiTargetId}
+					on:close={() => {
+						showApprovalDialog = false;
+					}}
 				/>
 			{/if}
 

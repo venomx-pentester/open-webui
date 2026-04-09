@@ -26,6 +26,9 @@ $env:ENABLE_WEBSOCKET_SUPPORT = "True"
 
 $env:CORS_ALLOW_ORIGIN = "http://localhost:5173;http://127.0.0.1:5173;http://localhost:5174;http://127.0.0.1:5174;http://localhost:8080;http://127.0.0.1:8080"
 
+$env:AGENT_RUNNER_URL = "http://100.85.133.20:8003"
+$env:AGENT_RUNNER_TOKEN = "change-me-in-production"
+
 Write-Host "Using Python: $(& $venvPython -c 'import sys; print(sys.executable)')" -ForegroundColor Green
 $uvicornArgs = @(
     "-m",

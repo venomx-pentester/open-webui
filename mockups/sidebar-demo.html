@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VenomX – Sidebar Live Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg-page: #0c0e12;
+    --bg-sidebar: rgba(15, 17, 23, 0.82);
+    --bg-card: rgba(20, 24, 33, 0.65);
+    --bg-card-hover: rgba(25, 30, 42, 0.75);
+    --border: rgba(56, 113, 194, 0.18);
+    --border-active: rgba(56, 160, 255, 0.35);
+    --text-primary: #e2e8f0;
+    --text-secondary: #8896ab;
+    --text-dim: #5a6578;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245, 158, 11, 0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.1);
+    --cyan: #06b6d4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 24px;
+    gap: 32px;
+  }
+
+  .demo-controls {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .demo-controls button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .demo-controls button:hover { background: var(--bg-card-hover); border-color: var(--border-active); }
+  .demo-controls button.active { border-color: var(--accent); background: var(--accent-glow); }
+  .demo-controls .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0 2px;
+  }
+
+  .sidebar-frame {
+    width: 288px;
+    flex-shrink: 0;
+  }
+
+  aside {
+    width: 288px;
+    height: 92vh;
+    max-height: 920px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg-sidebar);
+    backdrop-filter: blur(20px) saturate(1.4);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: none;
+    position: relative;
+  }
+  aside::-webkit-scrollbar { display: none; }
+
+  /* ── Header ── */
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 2px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-title { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .sidebar-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .sidebar-meta .dot { margin: 0 4px; opacity: 0.4; }
+  .close-btn {
+    width: 28px; height: 28px;
+    border-radius: 8px; border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: background 0.15s;
+    font-size: 16px;
+  }
+  .close-btn:hover { background: rgba(255,255,255,0.05); }
+
+  /* ── Run Info Card ── */
+  .run-info {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .run-info .run-target {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--cyan);
+  }
+  .run-info .run-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+  .run-badges {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .badge-running { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(59,130,246,0.25); }
+  .badge-paused { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+  .badge-complete { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+  .badge-error { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .badge-phase { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+
+  /* ── Progress Bar ── */
+  .progress-section { margin-top: 8px; }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+  }
+  .progress-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.1);
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #3b82f6, #06b6d4);
+    transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+    position: relative;
+  }
+  .progress-fill.paused {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  }
+  .progress-fill.paused::after {
+    animation: none;
+    opacity: 0;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 24px; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25));
+    border-radius: 999px;
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer { 0%,100% { opacity: 0.3; } 50% { opacity: 0.8; } }
+
+  /* ── Outcome Banner (replaces progress for terminal states) ── */
+  .outcome-banner {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.45;
+  }
+  .outcome-banner.outcome-error {
+    background: var(--red-dim);
+    border: 1px solid rgba(239,68,68,0.22);
+    color: var(--text-primary);
+  }
+  .outcome-banner.outcome-complete {
+    background: var(--green-dim);
+    border: 1px solid rgba(34,197,94,0.22);
+    color: var(--text-primary);
+  }
+  .outcome-banner.outcome-awaiting {
+    background: var(--amber-dim);
+    border: 1px solid rgba(245,158,11,0.22);
+    color: var(--text-primary);
+  }
+  .outcome-banner .outcome-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: 1px;
+  }
+  .outcome-banner .outcome-body { flex: 1; min-width: 0; }
+  .outcome-banner .outcome-title { font-weight: 700; margin-bottom: 2px; }
+  .outcome-banner .outcome-title.error-title { color: var(--red); }
+  .outcome-banner .outcome-title.complete-title { color: var(--green); }
+  .outcome-banner .outcome-title.awaiting-title { color: var(--amber); }
+  .outcome-banner .outcome-detail { color: var(--text-secondary); font-size: 10px; }
+  .outcome-banner .inline-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 7px;
+  }
+  .outcome-banner .inline-actions button {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .inline-btn-confirm {
+    background: var(--amber);
+    color: #1a1207;
+  }
+  .inline-btn-confirm:hover {
+    background: #fbbf24;
+  }
+  .inline-btn-skip {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .inline-btn-skip:hover {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-primary);
+  }
+
+  /* ── Floating Approval Dialog (anchored to chat bar) ── */
+  .approval-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(6, 8, 12, 0.55);
+    animation: overlayFade 0.15s ease-out;
+  }
+  @keyframes overlayFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .ask-anchor {
+    position: fixed;
+    bottom: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 201;
+    width: 540px;
+  }
+
+  .ask-card {
+    width: 100%;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow:
+      0 -1px 0 0 rgba(255,255,255,0.03) inset,
+      0 12px 48px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    animation: askGrow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes askGrow {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .ask-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ask-question {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .ask-close {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    transition: color 0.12s;
+  }
+  .ask-close:hover { color: var(--text-secondary); }
+
+  .ask-options { padding: 0; list-style: none; }
+
+  .ask-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.08s;
+  }
+  .ask-option + .ask-option {
+    border-top: 1px solid var(--border);
+  }
+  .ask-option.selected {
+    background: rgba(56, 130, 246, 0.08);
+  }
+  .ask-option .num-badge {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    transition: all 0.08s;
+  }
+  .ask-option.selected .num-badge {
+    background: var(--accent-glow);
+    border-color: var(--border-active);
+    color: var(--accent);
+  }
+  .ask-option-content { flex: 1; min-width: 0; }
+  .ask-option-text {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .ask-option-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .ask-option.selected .ask-option-desc { color: var(--text-secondary); }
+  .ask-option .arrow {
+    color: var(--text-dim);
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.08s;
+  }
+  .ask-option.selected .arrow { opacity: 1; color: var(--accent); }
+
+  .ask-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.15);
+  }
+  .ask-hints {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .ask-hints .sep { margin: 0 5px; opacity: 0.4; }
+  .ask-skip-btn {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .ask-skip-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  /* ── Stats Grid ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .stat-card {
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 12px; font-weight: 600; margin-top: 3px; }
+  .stat-value.mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Dispatch Pipeline ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 10px 0 6px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .dispatch-pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .dispatch-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 11px;
+    transition: all 0.2s;
+    min-height: 32px;
+  }
+  .dispatch-item.active {
+    border-color: var(--border-active);
+    background: var(--accent-glow);
+  }
+  .dispatch-item.done {
+    opacity: 0.65;
+  }
+  .dispatch-icon {
+    width: 18px; height: 18px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+  .dispatch-icon.pending { background: rgba(100,116,139,0.15); color: var(--text-dim); }
+  .dispatch-icon.running { background: var(--accent-glow); color: var(--accent); }
+  .dispatch-icon.ok { background: var(--green-dim); color: var(--green); }
+  .dispatch-icon.fail { background: var(--red-dim); color: var(--red); }
+  .dispatch-icon.awaiting { background: var(--amber-dim); color: var(--amber); }
+  .dispatch-item.awaiting {
+    border-color: rgba(245, 158, 11, 0.25);
+    background: rgba(245, 158, 11, 0.06);
+  }
+  .dispatch-icon.skipped { background: rgba(100,116,139,0.1); color: var(--text-dim); }
+  .dispatch-item.skipped { opacity: 0.45; }
+  .dispatch-name { font-weight: 600; flex-shrink: 0; }
+  .dispatch-detail {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-dim);
+    font-size: 10px;
+  }
+  .dispatch-nodes {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--green);
+    flex-shrink: 0;
+  }
+
+  /* ── Live Activity Feed ── */
+  .activity-feed {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+  }
+  .activity-feed::-webkit-scrollbar { display: none; }
+
+  .activity-item {
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 1.45;
+    border-left: 2px solid transparent;
+    animation: fadeSlideIn 0.25s ease-out;
+  }
+  .activity-item.tool-start { border-left-color: var(--accent); background: rgba(59,130,246,0.04); }
+  .activity-item.tool-result { border-left-color: var(--green); background: rgba(34,197,94,0.03); }
+  .activity-item.tool-fail { border-left-color: var(--red); background: rgba(239,68,68,0.04); }
+  .activity-item.dispatch-evt { border-left-color: #a78bfa; background: rgba(139,92,246,0.04); }
+  .activity-item.phase-evt { border-left-color: var(--amber); background: rgba(245,158,11,0.04); }
+  .activity-item.info { border-left-color: var(--text-dim); }
+
+  .activity-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-bottom: 1px;
+  }
+  .activity-msg { color: var(--text-secondary); }
+  .activity-msg strong { color: var(--text-primary); font-weight: 600; }
+  .activity-msg .tool-name { color: var(--cyan); font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+  .activity-msg .specialist-name { color: #a78bfa; font-weight: 600; }
+  .activity-msg .timing { color: var(--text-dim); }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Footer Actions ── */
+  .sidebar-footer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .btn-danger:hover { background: rgba(239,68,68,0.18); }
+  .btn-secondary { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+  /* ── Pulse dot ── */
+  .pulse-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    animation: pulse-glow 2s infinite;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px 16px;
+    gap: 12px;
+  }
+  .empty-state .icon { font-size: 32px; opacity: 0.3; }
+  .empty-state .msg { font-size: 12px; color: var(--text-dim); max-width: 200px; line-height: 1.5; }
+
+  /* ── Description panel (right side) ── */
+  .description-panel {
+    max-width: 380px;
+    padding: 32px 0;
+  }
+  .description-panel h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .description-panel p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .description-panel code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .description-panel ul { padding-left: 18px; margin: 8px 0 16px; }
+  .description-panel li { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; line-height: 1.5; }
+  .description-panel li strong { color: var(--text-primary); }
+  .description-panel hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<div class="demo-controls">
+  <div class="label">Demo State</div>
+  <button onclick="setState('idle')" id="btn-idle" class="active">Idle</button>
+  <button onclick="setState('running')" id="btn-running">Run Scan</button>
+  <button onclick="setState('phase1-done')" id="btn-phase1">Phase 1 Done</button>
+  <button onclick="setState('phase2')" id="btn-phase2">Phase 2</button>
+  <button onclick="setState('complete')" id="btn-complete">Complete</button>
+  <button onclick="setState('error')" id="btn-error">Error</button>
+</div>
+
+<div class="sidebar-frame">
+  <aside id="sidebar"></aside>
+</div>
+
+<div id="approval-popup"></div>
+
+<div class="description-panel">
+  <h1>Live Agent Sidebar</h1>
+  <p>Interactive mockup of the restructured Target Status Sidebar. Click the state buttons on the left to simulate different phases of a live VenomX pentest run.</p>
+  <hr />
+  <p><strong>What changed from the current sidebar:</strong></p>
+  <ul>
+    <li><strong>Run Info card</strong> — shows target IP, run ID, and live status badge instead of generic "Targets" counters</li>
+    <li><strong>Dispatch pipeline</strong> — replaces abstract "stages" with real specialist names (recon, web, smb, auth, vuln) and their status</li>
+    <li><strong>Live activity feed</strong> — real tool execution events (nmap, nikto, gobuster, hydra) with timing data, replacing mock progress messages</li>
+    <li><strong>Phase awareness</strong> — pause on Phase 1 boundary with a confirm action, matching the agent's two-phase flow</li>
+    <li><strong>Progress from dispatch count</strong> — progress bar reflects actual completed dispatches instead of heuristic guesses</li>
+  </ul>
+  <hr />
+  <p>Event types streamed from the agent runner:</p>
+  <ul>
+    <li><code>run_start</code> — agent begins</li>
+    <li><code>dispatch</code> — specialist assigned</li>
+    <li><code>tool_start</code> / <code>tool_result</code> — tool execution</li>
+    <li><code>specialist_result</code> — specialist finished</li>
+    <li><code>phase_complete</code> — Phase 1 boundary</li>
+    <li><code>run_complete</code> — final report</li>
+  </ul>
+</div>
+
+<script>
+const SPECIALISTS = [
+  { key: 'recon', label: 'Recon', tools: ['nmap (port scan)', 'nmap (service scan)', 'nmap (full scan)'] },
+  { key: 'web', label: 'Web', tools: ['nikto', 'gobuster'] },
+  { key: 'smb', label: 'SMB', tools: ['enum4linux'] },
+  { key: 'auth', label: 'Auth', tools: ['hydra (ssh)'] },
+  { key: 'vuln', label: 'Vuln', tools: ['searchsploit (OpenSSH 8.7)', 'searchsploit (Werkzeug/3.1.5)'] },
+];
+
+const PHASE2_SPECIALISTS = [
+  { key: 'exploit', label: 'Exploit', tools: ['metasploit'] },
+  { key: 'report', label: 'Report', tools: [] },
+];
+
+const MOCK_RESULTS = {
+  recon: { success: true, nodes: 4, creds: 0, summary: 'Open ports: 22, 80, 111. Services identified.' },
+  web: { success: true, nodes: 5, creds: 0, summary: 'Nikto: 5 potential issues. Gobuster: no hidden dirs.' },
+  smb: { success: true, nodes: 0, creds: 0, summary: 'No accessible shares or users found.' },
+  auth: { success: true, nodes: 0, creds: 0, summary: 'No valid credentials found on ssh:22.' },
+  vuln: { success: true, nodes: 0, creds: 0, summary: 'No exploitable vulnerabilities identified.' },
+  exploit: { success: true, nodes: 2, creds: 1, summary: 'Werkzeug debug console RCE confirmed.' },
+  report: { success: true, nodes: 0, creds: 0, summary: 'Final report generated.' },
+};
+
+const TOOL_TIMES = { 'nmap (port scan)': 3200, 'nmap (service scan)': 8400, 'nmap (full scan)': 42000, nikto: 18500, gobuster: 12300, enum4linux: 6800, 'hydra (ssh)': 24600, 'searchsploit (OpenSSH 8.7)': 1200, 'searchsploit (Werkzeug/3.1.5)': 980, metasploit: 31000 };
+
+let state = { lifecycle: 'idle', dispatches: [], activity: [], progress: 0, phase: 0, elapsed: 0, runId: '65ef002d6e3c469985b4855f35fe7ca4', target: '10.16.101.90', errorSpecialist: null, errorMessage: null, reviewed: false };
+let tickTimer = null;
+let eventQueue = [];
+let eventTimer = null;
+
+function now() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0') + ':' + d.getSeconds().toString().padStart(2,'0');
+}
+
+function fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m.toString().padStart(2,'0') + ':' + sec.toString().padStart(2,'0');
+}
+
+function pushActivity(type, msg) {
+  state.activity.unshift({ time: now(), type, msg });
+  if (state.activity.length > 30) state.activity.length = 30;
+}
+
+function buildDispatchList(specs, completedKeys, activeKey) {
+  return specs.map(s => {
+    let status = 'pending';
+    if (completedKeys.includes(s.key)) status = 'done';
+    else if (s.key === activeKey) status = 'active';
+    return { ...s, status, result: MOCK_RESULTS[s.key] };
+  });
+}
+
+function scheduleEvents(events) {
+  clearTimeout(eventTimer);
+  eventQueue = [...events];
+  drainNext();
+}
+
+function drainNext() {
+  if (eventQueue.length === 0) return;
+  const { delay, fn } = eventQueue.shift();
+  eventTimer = setTimeout(() => { fn(); render(); drainNext(); }, delay);
+}
+
+function stopTimers() {
+  clearInterval(tickTimer);
+  clearTimeout(eventTimer);
+  eventQueue = [];
+  tickTimer = null;
+}
+
+function startElapsedTicker() {
+  stopTimers();
+  const t0 = Date.now() - state.elapsed;
+  tickTimer = setInterval(() => {
+    if (state.lifecycle === 'running' || state.lifecycle === 'phase2') {
+      state.elapsed = Date.now() - t0;
+      document.getElementById('elapsed-val')?.textContent && (document.getElementById('elapsed-val').textContent = fmtElapsed(state.elapsed));
+    }
+  }, 1000);
+}
+
+function setState(name) {
+  stopTimers();
+  document.querySelectorAll('.demo-controls button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + name.replace('phase1-done','phase1').replace('phase2','phase2'))?.classList.add('active');
+
+  if (name === 'idle') {
+    state = { lifecycle: 'idle', dispatches: [], activity: [], progress: 0, phase: 0, elapsed: 0, runId: state.runId, target: state.target, errorSpecialist: null, errorMessage: null, reviewed: false };
+    render();
+    return;
+  }
+
+  if (name === 'running') {
+    state.lifecycle = 'running';
+    state.phase = 1;
+    state.dispatches = buildDispatchList(SPECIALISTS, [], null);
+    state.activity = [];
+    state.progress = 2;
+    state.elapsed = 0;
+    pushActivity('info', 'Agent run started for <strong>10.16.101.90</strong>');
+    render();
+    startElapsedTicker();
+
+    const completed = [];
+    const events = [];
+    let accDelay = 400;
+
+    SPECIALISTS.forEach((spec, si) => {
+      events.push({ delay: accDelay, fn: () => {
+        state.dispatches = buildDispatchList(SPECIALISTS, completed, spec.key);
+        pushActivity('dispatch-evt', `Dispatching to <span class="specialist-name">${spec.label}</span>`);
+        state.progress = Math.min(85, Math.floor(((si) / SPECIALISTS.length) * 80) + 5);
+      }});
+      accDelay = 600;
+
+      spec.tools.forEach((tool, ti) => {
+        events.push({ delay: 500, fn: () => {
+          pushActivity('tool-start', `<span class="specialist-name">${spec.label}</span> running <span class="tool-name">${tool}</span>`);
+        }});
+        const ms = TOOL_TIMES[tool] || 5000;
+        events.push({ delay: 800, fn: () => {
+          pushActivity('tool-result', `<span class="tool-name">${tool}</span> completed <span class="timing">(${(ms/1000).toFixed(1)}s)</span>`);
+        }});
+      });
+
+      events.push({ delay: 400, fn: () => {
+        completed.push(spec.key);
+        const r = MOCK_RESULTS[spec.key];
+        state.dispatches = buildDispatchList(SPECIALISTS, completed, null);
+        const nodes = r.nodes > 0 ? ` — +${r.nodes} nodes` : '';
+        pushActivity('tool-result', `<span class="specialist-name">${spec.label}</span> ${r.success ? 'OK' : 'failed'}${nodes}`);
+        state.progress = Math.min(90, Math.floor(((si + 1) / SPECIALISTS.length) * 80) + 5);
+      }});
+      accDelay = 700;
+    });
+
+    scheduleEvents(events);
+    return;
+  }
+
+  if (name === 'phase1-done') {
+    state.lifecycle = 'paused';
+    state.phase = 1;
+    state.reviewed = false;
+    state.dispatches = [
+      ...buildDispatchList(SPECIALISTS, SPECIALISTS.map(s => s.key), null),
+      ...PHASE2_SPECIALISTS.map(s => ({ ...s, status: 'awaiting', result: null })),
+    ];
+    state.progress = 71;
+    state.elapsed = 142000;
+    state.activity = [
+      { time: now(), type: 'phase-evt', msg: '<strong>Phase 1 complete.</strong> Reply yes to proceed with exploitation.' },
+      { time: now(), type: 'tool-result', msg: '<span class="specialist-name">Vuln</span> OK — no exploits found' },
+      { time: now(), type: 'tool-result', msg: '<span class="tool-name">searchsploit</span> completed <span class="timing">(1.2s)</span>' },
+      { time: now(), type: 'tool-result', msg: '<span class="specialist-name">Auth</span> OK — no creds found' },
+      { time: now(), type: 'tool-result', msg: '<span class="tool-name">hydra (ssh)</span> completed <span class="timing">(24.6s)</span>' },
+    ];
+    render();
+    return;
+  }
+
+  if (name === 'phase2') {
+    state.lifecycle = 'running';
+    state.phase = 2;
+    const allSpecs = [...SPECIALISTS, ...PHASE2_SPECIALISTS];
+    state.dispatches = [
+      ...buildDispatchList(SPECIALISTS, SPECIALISTS.map(s=>s.key), null),
+      ...buildDispatchList(PHASE2_SPECIALISTS, [], null),
+    ];
+    state.progress = 90;
+    state.elapsed = 148000;
+    state.activity = [
+      { time: now(), type: 'info', msg: 'Phase 2 (exploitation) started.' },
+      { time: now(), type: 'phase-evt', msg: '<strong>Phase 1 complete.</strong> Confirmed — proceeding.' },
+    ];
+    render();
+    startElapsedTicker();
+
+    const events = [];
+    const p2completed = [];
+    PHASE2_SPECIALISTS.forEach((spec, si) => {
+      events.push({ delay: 800, fn: () => {
+        state.dispatches = [
+          ...buildDispatchList(SPECIALISTS, SPECIALISTS.map(s=>s.key), null),
+          ...buildDispatchList(PHASE2_SPECIALISTS, p2completed, spec.key),
+        ];
+        pushActivity('dispatch-evt', `Dispatching to <span class="specialist-name">${spec.label}</span>`);
+        state.progress = 90 + si * 4;
+      }});
+
+      spec.tools.forEach(tool => {
+        events.push({ delay: 600, fn: () => { pushActivity('tool-start', `<span class="specialist-name">${spec.label}</span> running <span class="tool-name">${tool}</span>`); }});
+        events.push({ delay: 1200, fn: () => { pushActivity('tool-result', `<span class="tool-name">${tool}</span> completed <span class="timing">(${(TOOL_TIMES[tool]/1000).toFixed(1)}s)</span>`); }});
+      });
+
+      events.push({ delay: 500, fn: () => {
+        p2completed.push(spec.key);
+        const r = MOCK_RESULTS[spec.key];
+        state.dispatches = [
+          ...buildDispatchList(SPECIALISTS, SPECIALISTS.map(s=>s.key), null),
+          ...buildDispatchList(PHASE2_SPECIALISTS, p2completed, null),
+        ];
+        const extras = [];
+        if (r.nodes > 0) extras.push(`+${r.nodes} nodes`);
+        if (r.creds > 0) extras.push(`+${r.creds} creds`);
+        const detail = extras.length ? ` — ${extras.join(', ')}` : '';
+        pushActivity('tool-result', `<span class="specialist-name">${spec.label}</span> ${r.success?'OK':'failed'}${detail}`);
+        state.progress = 92 + (si + 1) * 3;
+      }});
+    });
+    scheduleEvents(events);
+    return;
+  }
+
+  if (name === 'complete') {
+    stopTimers();
+    state.lifecycle = 'complete';
+    state.phase = 2;
+    state.progress = 100;
+    state.elapsed = 198000;
+    state.reviewed = false;
+    state.dispatches = [
+      ...buildDispatchList(SPECIALISTS, SPECIALISTS.map(s=>s.key), null),
+      ...buildDispatchList(PHASE2_SPECIALISTS, PHASE2_SPECIALISTS.map(s=>s.key), null),
+    ];
+    state.activity = [
+      { time: now(), type: 'tool-result', msg: 'Agent run completed successfully.' },
+      { time: now(), type: 'tool-result', msg: '<span class="specialist-name">Report</span> OK — final report generated' },
+      { time: now(), type: 'tool-result', msg: '<span class="specialist-name">Exploit</span> OK — +2 nodes, +1 creds' },
+      { time: now(), type: 'tool-result', msg: '<span class="tool-name">metasploit</span> completed <span class="timing">(31.0s)</span>' },
+      { time: now(), type: 'dispatch-evt', msg: 'Dispatching to <span class="specialist-name">Report</span>' },
+      { time: now(), type: 'dispatch-evt', msg: 'Dispatching to <span class="specialist-name">Exploit</span>' },
+    ];
+    render();
+    return;
+  }
+
+  if (name === 'skip-complete') {
+    stopTimers();
+    state.lifecycle = 'complete';
+    state.phase = 1;
+    state.progress = 100;
+    state.elapsed = state.elapsed || 142000;
+    state.reviewed = false;
+    state.dispatches = [
+      ...buildDispatchList(SPECIALISTS, SPECIALISTS.map(s=>s.key), null),
+      ...PHASE2_SPECIALISTS.map(s => ({ ...s, status: 'skipped', result: null })),
+    ];
+    state.activity = [
+      { time: now(), type: 'info', msg: 'Run ended — exploitation phase skipped by user.' },
+      { time: now(), type: 'phase-evt', msg: '<strong>Phase 1 complete.</strong> Exploitation declined.' },
+    ];
+    render();
+    return;
+  }
+
+  if (name === 'error') {
+    stopTimers();
+    state.lifecycle = 'error';
+    state.phase = 1;
+    state.progress = 41;
+    state.elapsed = 67000;
+    state.errorSpecialist = 'SMB';
+    state.errorMessage = 'Connection refused to 10.16.101.90:445';
+    state.dispatches = buildDispatchList(SPECIALISTS, ['recon', 'web'], 'smb');
+    state.dispatches.find(d => d.key === 'smb').status = 'error';
+    state.activity = [
+      { time: now(), type: 'tool-fail', msg: 'Agent error: <strong>Connection refused to 10.16.101.90:445</strong>' },
+      { time: now(), type: 'tool-start', msg: '<span class="specialist-name">SMB</span> running <span class="tool-name">enum4linux</span>' },
+      { time: now(), type: 'dispatch-evt', msg: 'Dispatching to <span class="specialist-name">SMB</span>' },
+    ];
+    render();
+    return;
+  }
+}
+
+function render() {
+  const sb = document.getElementById('sidebar');
+
+  document.getElementById('approval-popup').innerHTML = '';
+
+  if (state.lifecycle === 'idle') {
+    sb.innerHTML = `
+      <div class="sidebar-header">
+        <div>
+          <div class="sidebar-title">Agent Runner</div>
+          <div class="sidebar-meta">No active run</div>
+        </div>
+        <button class="close-btn">✕</button>
+      </div>
+      <div class="empty-state">
+        <div class="icon">⬡</div>
+        <div class="msg">Send <code>/pentest &lt;target&gt;</code> in chat to start a penetration test run.</div>
+      </div>
+      <div class="sidebar-footer">
+        <a class="btn btn-secondary" href="#">Manage Targets</a>
+      </div>
+    `;
+    return;
+  }
+
+  const isRunning = state.lifecycle === 'running';
+  const isPaused = state.lifecycle === 'paused';
+  const isComplete = state.lifecycle === 'complete';
+  const isError = state.lifecycle === 'error';
+
+  const badgeClass = isComplete ? 'badge-complete' : isError ? 'badge-error' : isPaused ? 'badge-paused' : 'badge-running';
+  const badgeLabel = isComplete ? 'Complete' : isError ? 'Error' : isPaused ? 'Awaiting Confirm' : 'Running';
+  const doneCount = state.dispatches.filter(d => d.status === 'done').length;
+  const totalCount = state.dispatches.length;
+
+  const dispatches = state.dispatches.map(d => {
+    const iconClass = d.status === 'done' ? 'ok' : d.status === 'active' ? 'running' : d.status === 'error' ? 'fail' : d.status === 'awaiting' ? 'awaiting' : d.status === 'skipped' ? 'skipped' : 'pending';
+    const iconChar = d.status === 'done' ? '✓' : d.status === 'active' ? '▸' : d.status === 'error' ? '✕' : d.status === 'awaiting' ? '⏳' : d.status === 'skipped' ? '—' : '·';
+    const itemClass = d.status === 'active' ? 'active' : d.status === 'done' ? 'done' : d.status === 'awaiting' ? 'awaiting' : d.status === 'skipped' ? 'skipped' : '';
+    const nodesStr = d.status === 'done' && d.result?.nodes > 0 ? `+${d.result.nodes}` : '';
+    const detailStr = d.status === 'done' ? (d.result?.summary?.slice(0, 50) || '') : d.status === 'active' ? 'executing...' : d.status === 'awaiting' ? 'awaiting confirmation' : d.status === 'skipped' ? 'skipped' : '';
+    return `<div class="dispatch-item ${itemClass}">
+      <div class="dispatch-icon ${iconClass}">${iconChar}</div>
+      <div class="dispatch-name">${d.label}</div>
+      <div class="dispatch-detail">${detailStr}</div>
+      ${nodesStr ? `<div class="dispatch-nodes">${nodesStr}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const activityHtml = state.activity.map(a => `
+    <div class="activity-item ${a.type}">
+      <div class="activity-time">${a.time}</div>
+      <div class="activity-msg">${a.msg}</div>
+    </div>
+  `).join('');
+
+  sb.innerHTML = `
+    <div class="sidebar-header">
+      <div>
+        <div class="sidebar-title">${isRunning ? '<span class="pulse-dot"></span>' : ''}Agent Runner</div>
+        <div class="sidebar-meta">Phase ${state.phase}${state.phase === 1 ? ' — Reconnaissance' : ' — Exploitation'}</div>
+      </div>
+      <button class="close-btn">✕</button>
+    </div>
+
+    <div class="run-info">
+      <div class="run-target">${state.target}</div>
+      <div class="run-badges">
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+        <span class="badge badge-phase">Phase ${state.phase}</span>
+      </div>
+      <div class="run-id">${state.runId}</div>
+    </div>
+
+    ${isError ? `
+    <div class="outcome-banner outcome-error">
+      <div class="outcome-icon">✕</div>
+      <div class="outcome-body">
+        <div class="outcome-title error-title">Run failed at ${state.errorSpecialist || 'unknown'}</div>
+        <div class="outcome-detail">${state.errorMessage || 'An unexpected error occurred.'}</div>
+      </div>
+    </div>
+    ` : isComplete ? `
+    <div class="outcome-banner outcome-complete">
+      <div class="outcome-icon">✓</div>
+      <div class="outcome-body">
+        <div class="outcome-title complete-title">Run finished</div>
+        <div class="outcome-detail">${state.phase === 1
+          ? `${doneCount} specialists completed — exploitation skipped`
+          : `${totalCount} specialists completed in ${fmtElapsed(state.elapsed)}`}</div>
+      </div>
+    </div>
+    ` : isPaused ? `
+    <div class="outcome-banner outcome-awaiting">
+      <div class="outcome-icon">⏳</div>
+      <div class="outcome-body">
+        <div class="outcome-title awaiting-title">Awaiting confirmation</div>
+        <div class="outcome-detail">Phase 1 reconnaissance complete. ${state.reviewed ? 'Review the activity log, then confirm or skip below.' : 'Waiting for approval to proceed.'}</div>
+      </div>
+    </div>
+    <div class="progress-section">
+      <div class="progress-header">
+        <span>${doneCount}/${totalCount} specialists</span>
+        <span>${state.progress}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill paused" style="width:${state.progress}%"></div>
+      </div>
+    </div>
+    ` : `
+    <div class="progress-section">
+      <div class="progress-header">
+        <span>${doneCount}/${totalCount} specialists</span>
+        <span>${state.progress}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${state.progress}%"></div>
+      </div>
+    </div>
+    `}
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Elapsed</div>
+        <div class="stat-value mono" id="elapsed-val">${fmtElapsed(state.elapsed)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dispatches</div>
+        <div class="stat-value mono">${doneCount}/${totalCount}</div>
+      </div>
+    </div>
+
+    <div class="section-label">Dispatch Pipeline</div>
+    <div class="dispatch-pipeline">${dispatches}</div>
+
+    <div class="section-label">Live Activity</div>
+    <div class="activity-feed">${activityHtml}</div>
+
+    <div class="sidebar-footer">
+      ${isRunning ? '<button class="btn btn-danger" onclick="setState(\'error\')">Stop Run</button>' : ''}
+      ${isPaused && state.reviewed ? '<button class="btn btn-primary" onclick="setState(\'phase2\')">Confirm Phase 2</button>' : ''}
+      ${isPaused && state.reviewed ? '<button class="btn btn-danger" onclick="setState(\'skip-complete\')">Skip Exploitation</button>' : ''}
+      <a class="btn btn-secondary" href="#">Manage Targets</a>
+    </div>
+  `;
+
+  renderApprovalPopup();
+}
+
+let askSelected = 0;
+const ASK_OPTIONS = [
+  { label: 'Confirm Phase 2', desc: 'Proceed with active exploitation against discovered services' },
+  { label: 'Review findings first', desc: 'Dismiss this dialog and review the activity log before deciding' },
+];
+
+function askAction(i) {
+  dismissPopup();
+  if (i === 0) {
+    setState('phase2');
+  } else {
+    state.reviewed = true;
+    render();
+  }
+}
+
+function dismissPopup() {
+  document.getElementById('approval-popup').innerHTML = '';
+  document.removeEventListener('keydown', handleApprovalKeys);
+}
+
+function updateSelection(idx) {
+  const items = document.querySelectorAll('.ask-option');
+  items.forEach((el, i) => {
+    if (i === idx) el.classList.add('selected');
+    else el.classList.remove('selected');
+  });
+  askSelected = idx;
+}
+
+function renderApprovalPopup() {
+  const popup = document.getElementById('approval-popup');
+  if (state.lifecycle !== 'paused' || state.reviewed) {
+    popup.innerHTML = '';
+    document.removeEventListener('keydown', handleApprovalKeys);
+    return;
+  }
+
+  askSelected = 0;
+
+  popup.innerHTML = `
+    <div class="approval-overlay" onclick="if(event.target===this)dismissPopup()"></div>
+    <div class="ask-anchor">
+      <div class="ask-card">
+        <div class="ask-header">
+          <div class="ask-question">Phase 1 complete — proceed with exploitation?</div>
+          <button class="ask-close" onclick="dismissPopup()">✕</button>
+        </div>
+        <div class="ask-options">
+          ${ASK_OPTIONS.map((opt, i) => `
+            <div class="ask-option ${i === 0 ? 'selected' : ''}"
+                 onclick="askAction(${i})"
+                 onmouseenter="updateSelection(${i})">
+              <div class="num-badge">${i + 1}</div>
+              <div class="ask-option-content">
+                <div class="ask-option-text">${opt.label}</div>
+                <div class="ask-option-desc">${opt.desc}</div>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="ask-footer">
+          <div class="ask-hints">
+            ↑↓ navigate<span class="sep">·</span>Enter select<span class="sep">·</span>Esc dismiss
+          </div>
+          <button class="ask-skip-btn" onclick="dismissPopup();setState('skip-complete')">Skip</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.addEventListener('keydown', handleApprovalKeys);
+}
+
+function handleApprovalKeys(e) {
+  if (state.lifecycle !== 'paused' || !document.getElementById('approval-popup').innerHTML) {
+    document.removeEventListener('keydown', handleApprovalKeys);
+    return;
+  }
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    updateSelection((askSelected + 1) % 2);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    updateSelection((askSelected - 1 + 2) % 2);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    askAction(askSelected);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    dismissPopup();
+  } else if (e.key === '1' || e.key === '2') {
+    e.preventDefault();
+    askAction(parseInt(e.key) - 1);
+  }
+}
+
+render();
+</script>
+</body>
+</html>

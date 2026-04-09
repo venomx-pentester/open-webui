@@ -26,6 +26,24 @@ export type ScanActivity = {
 	stageId: ScanStageId;
 };
 
+export type DispatchStatus =
+	| 'pending'
+	| 'active'
+	| 'done'
+	| 'awaiting'
+	| 'skipped'
+	| 'error';
+
+export type DispatchEntry = {
+	key: string;
+	label: string;
+	status: DispatchStatus;
+	summary?: string;
+	nodesAdded?: number;
+	credsAdded?: number;
+	tools?: string[];
+};
+
 export type ScanSession = {
 	id: string;
 	targetId: string;
@@ -39,6 +57,13 @@ export type ScanSession = {
 	currentStageId: ScanStageId;
 	stages: ScanStage[];
 	activity: ScanActivity[];
+	dispatches: DispatchEntry[];
+	phase: number;
+	reviewed: boolean;
+	errorSpecialist: string | null;
+	errorMessage: string | null;
+	/** Set from chat (Run ID) or agent `run_start` SSE — used to reconnect the event stream */
+	agentRunId: string | null;
 };
 
 type ScanSessionMap = Record<string, ScanSession>;
@@ -328,7 +353,13 @@ export const startMockScanSession = (target: Target) => {
 					message: STAGE_MESSAGES.queued[0],
 					stageId: 'queued'
 				}
-			]
+			],
+			dispatches: [],
+			phase: 1,
+			reviewed: false,
+			errorSpecialist: null,
+			errorMessage: null,
+			agentRunId: null
 		}
 	}));
 
@@ -595,8 +626,25 @@ export const startScanSession = (target: Target) => {
 					message: 'Target added to live model execution queue.',
 					stageId: 'queued'
 				}
-			]
+			],
+			dispatches: [],
+			phase: 1,
+			reviewed: false,
+			errorSpecialist: null,
+			errorMessage: null,
+			agentRunId: null
 		}
+	}));
+};
+
+export const setAgentRunId = (targetId: string, runId: string) => {
+	if (!ensureLiveSession(targetId)) {
+		return;
+	}
+	setSession(targetId, (session) => ({
+		...session,
+		agentRunId: runId,
+		updatedAt: now()
 	}));
 };
 
@@ -787,4 +835,391 @@ export const resumeScanSession = (targetId: string) => {
 			'Scan tracking resumed and waiting for model updates.'
 		)
 	);
+};
+
+const RECON_SPECIALISTS = new Set(['recon', 'web', 'osint']);
+const ANALYSIS_SPECIALISTS = new Set(['smb', 'auth', 'vuln', 'sql', 'ad']);
+const EXPLOIT_SPECIALISTS = new Set(['exploit', 'post', 'report']);
+
+const CLASS_TO_KEY: Record<string, string> = {
+	OsintSpecialist: 'osint',
+	ReconSpecialist: 'recon',
+	WebSpecialist: 'web',
+	AuthSpecialist: 'auth',
+	VulnSpecialist: 'vuln',
+	SqlSpecialist: 'sql',
+	SmbSpecialist: 'smb',
+	ADSpecialist: 'ad',
+	ExploitSpecialist: 'exploit',
+	PostSpecialist: 'post',
+	ReportSpecialist: 'report'
+};
+
+const KEY_TO_LABEL: Record<string, string> = {
+	osint: 'OSINT',
+	recon: 'Recon',
+	web: 'Web',
+	auth: 'Auth',
+	vuln: 'Vuln',
+	sql: 'SQL',
+	smb: 'SMB',
+	ad: 'AD',
+	exploit: 'Exploit',
+	post: 'Post-Exploit',
+	report: 'Report'
+};
+
+const PHASE2_KEYS = new Set(['exploit', 'post', 'report']);
+
+const resolveSpecialistKey = (name: string): string => {
+	return CLASS_TO_KEY[name] ?? name.toLowerCase().replace(/specialist$/i, '');
+};
+
+const stageForSpecialist = (specialist: string): ScanStageId => {
+	const name = (specialist ?? '').toLowerCase();
+	if (RECON_SPECIALISTS.has(name)) return 'surface_enumeration';
+	if (ANALYSIS_SPECIALISTS.has(name)) return 'service_analysis';
+	if (EXPLOIT_SPECIALISTS.has(name)) return 'findings_assembly';
+	return 'asset_validation';
+};
+
+const dispatchProgress = (session: ScanSession): number => {
+	const total = session.dispatches.length;
+	if (total === 0) return session.progress;
+	const done = session.dispatches.filter(
+		(d) => d.status === 'done' || d.status === 'error'
+	).length;
+	const fraction = done / total;
+	return Math.min(95, Math.max(session.progress, Math.floor(5 + fraction * 90)));
+};
+
+export const applyAgentEvent = (
+	targetId: string,
+	event: { type: string; [key: string]: unknown }
+) => {
+	if (!ensureLiveSession(targetId)) {
+		return;
+	}
+
+	const eventType = event.type;
+
+	if (eventType === 'run_start') {
+		const target = (event.target as string) ?? '';
+		const rid =
+			typeof event.run_id === 'string' ? event.run_id : undefined;
+		setSession(targetId, (session) => {
+			const stageId: ScanStageId = 'asset_validation';
+			const next = appendActivity(
+				{
+					...session,
+					lifecycle: 'running',
+					currentStageId: stageId,
+					progress: STAGE_PROGRESS_BANDS[stageId].min,
+					updatedAt: now(),
+					stages: deriveStagesForLiveSession(session, stageId, { lifecycle: 'running' }),
+					dispatches: [],
+					phase: 1,
+					reviewed: false,
+					errorSpecialist: null,
+					errorMessage: null,
+					agentRunId: rid ?? session.agentRunId ?? null
+				},
+				stageId,
+				`Agent run started for ${target || 'target'}.`
+			);
+			return next;
+		});
+		return;
+	}
+
+	if (eventType === 'dispatch') {
+		const specialist = (event.specialist as string) ?? 'unknown';
+		const objective = (event.objective as string) ?? '';
+		const stageId = stageForSpecialist(specialist);
+
+		setSession(targetId, (session) => {
+			const existing = session.dispatches.find((d) => d.key === specialist);
+			let dispatches: DispatchEntry[];
+			if (existing) {
+				dispatches = session.dispatches.map((d) =>
+					d.key === specialist ? { ...d, status: 'active' as DispatchStatus } : d
+				);
+			} else {
+				dispatches = [
+					...session.dispatches,
+					{
+						key: specialist,
+						label: KEY_TO_LABEL[specialist] ?? specialist,
+						status: 'active',
+						tools: []
+					}
+				];
+			}
+
+			const updated = {
+				...session,
+				lifecycle: 'running' as ScanLifecycle,
+				currentStageId: stageId,
+				dispatches,
+				updatedAt: now(),
+				stages: deriveStagesForLiveSession(session, stageId, { lifecycle: 'running' })
+			};
+			updated.progress = dispatchProgress(updated);
+
+			return appendActivity(
+				updated,
+				stageId,
+				`Dispatching to ${specialist}: ${objective.slice(0, 120) || 'executing task'}`
+			);
+		});
+		return;
+	}
+
+	if (eventType === 'tool_start') {
+		const rawSpecialist = (event.specialist as string) ?? '';
+		const key = resolveSpecialistKey(rawSpecialist);
+		const tool = (event.tool as string) ?? 'unknown';
+
+		setSession(targetId, (session) => {
+			const dispatches = session.dispatches.map((d) => {
+				if (d.key === key) {
+					const tools = d.tools ? [...d.tools] : [];
+					if (!tools.includes(tool)) tools.push(tool);
+					return { ...d, tools };
+				}
+				return d;
+			});
+			return appendActivity(
+				{ ...session, dispatches, updatedAt: now() },
+				session.currentStageId,
+				`[${KEY_TO_LABEL[key] ?? rawSpecialist}] Running ${tool}`
+			);
+		});
+		return;
+	}
+
+	if (eventType === 'tool_result') {
+		const rawSpecialist = (event.specialist as string) ?? '';
+		const key = resolveSpecialistKey(rawSpecialist);
+		const tool = (event.tool as string) ?? 'unknown';
+		const success = event.success as boolean;
+		const ms = (event.execution_ms as number) ?? 0;
+		const label = success ? 'completed' : 'failed';
+		const timing = ms > 0 ? ` (${(ms / 1000).toFixed(1)}s)` : '';
+		setSession(targetId, (session) =>
+			appendActivity(
+				session,
+				session.currentStageId,
+				`[${KEY_TO_LABEL[key] ?? rawSpecialist}] ${tool} ${label}${timing}`
+			)
+		);
+		return;
+	}
+
+	if (eventType === 'specialist_result') {
+		const specialist = (event.specialist as string) ?? 'unknown';
+		const success = event.success as boolean;
+		const nodesAdded = (event.nodes_added as number) ?? 0;
+		const credsAdded = (event.creds_added as number) ?? 0;
+		const summary = ((event.summary as string) ?? '').slice(0, 200);
+
+		setSession(targetId, (session) => {
+			const dispatches = session.dispatches.map((d) =>
+				d.key === specialist
+					? {
+							...d,
+							status: (success ? 'done' : 'error') as DispatchStatus,
+							summary,
+							nodesAdded,
+							credsAdded
+						}
+					: d
+			);
+
+			const updated = {
+				...session,
+				dispatches,
+				updatedAt: now()
+			};
+			updated.progress = dispatchProgress(updated);
+
+			const statusLabel = success ? 'OK' : 'failed';
+			const details = [
+				nodesAdded > 0 ? `+${nodesAdded} nodes` : null,
+				credsAdded > 0 ? `+${credsAdded} creds` : null
+			]
+				.filter(Boolean)
+				.join(', ');
+			const detailsSuffix = details ? ` — ${details}` : '';
+			const msg = `${KEY_TO_LABEL[specialist] ?? specialist} ${statusLabel}${detailsSuffix}${summary ? `. ${summary}` : ''}`;
+
+			return appendActivity(updated, session.currentStageId, msg);
+		});
+		return;
+	}
+
+	if (eventType === 'phase_complete') {
+		const message = (event.message as string) ?? 'Phase complete.';
+		setSession(targetId, (session) => {
+			const phase2Entries: DispatchEntry[] = ['exploit', 'post', 'report']
+				.filter((k) => !session.dispatches.some((d) => d.key === k))
+				.map((k) => ({
+					key: k,
+					label: KEY_TO_LABEL[k] ?? k,
+					status: 'awaiting' as DispatchStatus
+				}));
+
+			const dispatches = [...session.dispatches, ...phase2Entries];
+
+			const next = appendActivity(
+				{
+					...session,
+					lifecycle: 'paused',
+					dispatches,
+					reviewed: false,
+					updatedAt: now(),
+					stages: deriveStagesForLiveSession(session, session.currentStageId, {
+						lifecycle: 'paused'
+					})
+				},
+				session.currentStageId,
+				message.slice(0, 200)
+			);
+			return next;
+		});
+		return;
+	}
+
+	if (eventType === 'report') {
+		setSession(targetId, (session) => {
+			const stageId: ScanStageId = 'findings_assembly';
+			const dispatches = session.dispatches.map((d) =>
+				d.key === 'report' ? { ...d, status: 'done' as DispatchStatus } : d
+			);
+			return appendActivity(
+				{
+					...session,
+					dispatches,
+					currentStageId: stageId,
+					progress: Math.max(session.progress, STAGE_PROGRESS_BANDS[stageId].max - 2),
+					updatedAt: now(),
+					stages: deriveStagesForLiveSession(session, stageId, { lifecycle: 'running' })
+				},
+				stageId,
+				'Final report generated.'
+			);
+		});
+		return;
+	}
+
+	if (eventType === 'run_complete') {
+		setSession(targetId, (session) => {
+			const timestamp = now();
+			const dispatches = session.dispatches.map((d) =>
+				d.status === 'active' ? { ...d, status: 'done' as DispatchStatus } : d
+			);
+			return appendActivity(
+				{
+					...session,
+					dispatches,
+					lifecycle: 'complete',
+					currentStageId: 'complete',
+					progress: 100,
+					endedAt: timestamp,
+					updatedAt: timestamp,
+					stages: deriveStagesForLiveSession(session, 'complete', { lifecycle: 'complete' })
+				},
+				'complete',
+				'Agent run completed successfully.'
+			);
+		});
+		return;
+	}
+
+	if (eventType === 'run_error') {
+		const errorMsg = (event.error as string) ?? 'Unknown error';
+		setSession(targetId, (session) => {
+			const timestamp = now();
+			const activeDispatch = session.dispatches.find((d) => d.status === 'active');
+			const dispatches = session.dispatches.map((d) =>
+				d.status === 'active' ? { ...d, status: 'error' as DispatchStatus } : d
+			);
+			return appendActivity(
+				{
+					...session,
+					dispatches,
+					lifecycle: 'error',
+					progress: Math.max(session.progress, 50),
+					endedAt: timestamp,
+					updatedAt: timestamp,
+					errorSpecialist: activeDispatch
+						? KEY_TO_LABEL[activeDispatch.key] ?? activeDispatch.key
+						: null,
+					errorMessage: errorMsg.slice(0, 200),
+					stages: deriveStagesForLiveSession(session, session.currentStageId, {
+						lifecycle: 'error',
+						error: true
+					})
+				},
+				session.currentStageId,
+				`Agent error: ${errorMsg.slice(0, 200)}`
+			);
+		});
+		return;
+	}
+};
+
+export const confirmPhase2 = (targetId: string) => {
+	setSession(targetId, (session) => {
+		const dispatches = session.dispatches.map((d) =>
+			d.status === 'awaiting' ? { ...d, status: 'pending' as DispatchStatus } : d
+		);
+		return appendActivity(
+			{
+				...session,
+				lifecycle: 'running',
+				phase: 2,
+				reviewed: false,
+				dispatches,
+				updatedAt: now(),
+				stages: deriveStagesForLiveSession(session, session.currentStageId, {
+					lifecycle: 'running'
+				})
+			},
+			session.currentStageId,
+			'Phase 2 confirmed — proceeding with exploitation.'
+		);
+	});
+};
+
+export const skipExploitation = (targetId: string) => {
+	setSession(targetId, (session) => {
+		const timestamp = now();
+		const dispatches = session.dispatches.map((d) =>
+			d.status === 'awaiting' || d.status === 'pending'
+				? { ...d, status: 'skipped' as DispatchStatus }
+				: d
+		);
+		return appendActivity(
+			{
+				...session,
+				lifecycle: 'complete',
+				dispatches,
+				progress: 100,
+				endedAt: timestamp,
+				updatedAt: timestamp,
+				stages: deriveStagesForLiveSession(session, 'complete', { lifecycle: 'complete' })
+			},
+			'complete',
+			'Run ended — exploitation phase skipped by user.'
+		);
+	});
+};
+
+export const setReviewed = (targetId: string) => {
+	setSession(targetId, (session) => ({
+		...session,
+		reviewed: true,
+		updatedAt: now()
+	}));
 };

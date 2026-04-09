@@ -69,6 +69,7 @@ from open_webui.socket.main import (
     get_models_in_use,
 )
 from open_webui.routers import (
+    agent_runner,
     analytics,
     audio,
     images,
@@ -1521,6 +1522,7 @@ app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['eval
 if ENABLE_ADMIN_ANALYTICS:
     app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
 app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
+app.include_router(agent_runner.router, prefix='/api/v1/agent', tags=['agent_runner'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 
 # SCIM 2.0 API for identity management
