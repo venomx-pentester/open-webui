@@ -1,17 +1,6 @@
 <script lang="ts">
 	import { onMount, getContext } from 'svelte';
-	import {
-		WEBUI_NAME,
-		showSidebar,
-		functions,
-		user,
-		mobile,
-		settings,
-		config,
-		models,
-		knowledge,
-		tools
-	} from '$lib/stores';
+	import { WEBUI_NAME, showSidebar, user, mobile, settings, config } from '$lib/stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -108,77 +97,6 @@
 						<div
 							class="flex gap-1 scrollbar-none overflow-x-auto w-fit text-center text-sm font-medium rounded-full bg-gray-100/60 dark:bg-gray-850/50 p-1 touch-auto pointer-events-auto"
 						>
-							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models}
-								<a
-									draggable="false"
-									aria-current={$page.url.pathname.includes('/workspace/models') ? 'page' : null}
-									class="min-w-fit px-3 py-1.5 rounded-full {$page.url.pathname.includes(
-										'/workspace/models'
-									)
-										? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/70'} transition select-none"
-									href="/workspace/models">{$i18n.t('Models')}</a
-								>
-							{/if}
-
-							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.knowledge}
-								<a
-									draggable="false"
-									aria-current={$page.url.pathname.includes('/workspace/knowledge') ? 'page' : null}
-									class="min-w-fit px-3 py-1.5 rounded-full {$page.url.pathname.includes(
-										'/workspace/knowledge'
-									)
-										? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/70'} transition select-none"
-									href="/workspace/knowledge"
-								>
-									{$i18n.t('Knowledge')}
-								</a>
-							{/if}
-
-							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.prompts}
-								<a
-									draggable="false"
-									aria-current={$page.url.pathname.includes('/workspace/prompts') ? 'page' : null}
-									class="min-w-fit px-3 py-1.5 rounded-full {$page.url.pathname.includes(
-										'/workspace/prompts'
-									)
-										? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/70'} transition select-none"
-									href="/workspace/prompts">{$i18n.t('Prompts')}</a
-								>
-							{/if}
-
-							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.skills}
-								<a
-									draggable="false"
-									aria-current={$page.url.pathname.includes('/workspace/skills') ? 'page' : null}
-									class="min-w-fit px-3 py-1.5 rounded-full {$page.url.pathname.includes(
-										'/workspace/skills'
-									)
-										? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/70'} transition select-none"
-									href="/workspace/skills"
-								>
-									{$i18n.t('Skills')}
-								</a>
-							{/if}
-
-							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.tools}
-								<a
-									draggable="false"
-									aria-current={$page.url.pathname.includes('/workspace/tools') ? 'page' : null}
-									class="min-w-fit px-3 py-1.5 rounded-full {$page.url.pathname.includes(
-										'/workspace/tools'
-									)
-										? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/70'} transition select-none"
-									href="/workspace/tools"
-								>
-									{$i18n.t('Tools')}
-								</a>
-							{/if}
-
 							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.targets}
 								<a
 									draggable="false"

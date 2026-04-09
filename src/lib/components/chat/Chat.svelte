@@ -169,11 +169,8 @@
 	let eventConfirmationInputType = '';
 	let eventCallback = null;
 
-	$: agentUiTargetId =
-		$activeRunTargetId ?? $activeQueueTargetId ?? $activeTargetId;
-	$: approvalTargetSession = agentUiTargetId
-		? $scanSessions[agentUiTargetId] ?? null
-		: null;
+	$: agentUiTargetId = $activeRunTargetId ?? $activeQueueTargetId ?? $activeTargetId;
+	$: approvalTargetSession = agentUiTargetId ? ($scanSessions[agentUiTargetId] ?? null) : null;
 	$: if (approvalTargetSession?.lifecycle === 'paused' && !approvalTargetSession.reviewed) {
 		showApprovalDialog = true;
 	} else {

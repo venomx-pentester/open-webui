@@ -14,6 +14,7 @@
 		deleteTarget,
 		queueTargetScan,
 		setActiveTarget,
+		startScanQueue,
 		targets,
 		toggleTargetStatus
 	} from '$lib/stores/targets';
@@ -61,98 +62,118 @@
 	}}
 />
 
-<div class="flex flex-col gap-1 px-1 mt-1.5 mb-3">
-	<div class="flex justify-between items-center gap-3 flex-wrap">
-		<div class="flex items-center md:self-center text-xl font-medium px-0.5 gap-2 shrink-0">
-			<div>{$i18n.t('Targets')}</div>
-			<div class="text-lg font-medium text-gray-500 dark:text-gray-500">
-				{filteredTargets.length}
+<div class="flex flex-col gap-4 px-1 mt-1.5 mb-3">
+	<div class="targets-shell px-4 py-4 md:px-5 md:py-5">
+		<div class="flex justify-between items-start gap-3 flex-wrap">
+			<div class="min-w-0">
+				<div class="flex items-center gap-3 shrink-0">
+					<div
+						class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400"
+					>
+						{$i18n.t('Target Workspace')}
+					</div>
+					<div class="h-px flex-1 bg-slate-200/80 dark:bg-slate-800/80"></div>
+				</div>
+				<div class="mt-2 flex items-baseline gap-2">
+					<div class="text-xl md:text-2xl font-semibold tracking-tight">{$i18n.t('Targets')}</div>
+					<div class="text-base font-medium text-slate-500 dark:text-slate-400">
+						{filteredTargets.length}
+					</div>
+				</div>
+				<div
+					class="mt-2 text-sm md:text-[15px] leading-6 text-slate-600 dark:text-slate-300 max-w-3xl"
+				>
+					{$i18n.t(
+						'Manage the assets under assessment. Live scans, queued runs, and target metadata are presented with the same visual language as the rest of the app.'
+					)}
+				</div>
 			</div>
-		</div>
 
-		<button
-			class="px-2.5 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400 transition font-medium text-sm flex items-center shadow-sm"
-			on:click={() => {
-				showAddTargetModal = true;
-			}}
-		>
-			<Plus className="size-3" strokeWidth="2.5" />
-			<div class="hidden md:block md:ml-1 text-xs">{$i18n.t('Add Target')}</div>
-		</button>
-	</div>
-
-	<div class="text-sm text-gray-600 dark:text-gray-300 px-0.5 max-w-3xl">
-		{$i18n.t(
-			'Manage scan assets for VenomX. Queue execution now tracks live model response progress from chat in real time.'
-		)}
-	</div>
-</div>
-
-<div
-	class="py-2 rounded-3xl border border-sky-100/80 dark:border-sky-900/50 bg-white/72 dark:bg-slate-950/56 backdrop-blur-md shadow-sm"
->
-	<div class="px-3.5 pt-1 pb-2">
-		<ScanProgressPanel targetId={$activeTargetId} title="Scan Progress" />
-	</div>
-
-	<div class="px-3.5 flex flex-col gap-2 pb-2">
-		<div
-			class="flex items-center w-full space-x-2 py-0.5 rounded-xl border border-sky-100/80 dark:border-sky-900/40 bg-white/70 dark:bg-slate-900/45 px-1.5"
-		>
-			<div class="self-center ml-1 mr-3"><Search className="size-3.5" /></div>
-			<input
-				class="w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-				bind:value={query}
-				placeholder={$i18n.t('Search targets by name, value, or description')}
-				aria-label={$i18n.t('Search Targets')}
-			/>
-			{#if query}
+			<div class="flex items-center gap-2">
 				<button
-					class="p-0.5 rounded-full hover:bg-sky-100/80 dark:hover:bg-sky-900/50 transition"
-					aria-label={$i18n.t('Clear search')}
+					class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-medium text-sm shadow-sm"
 					on:click={() => {
-						query = '';
+						showAddTargetModal = true;
 					}}
 				>
-					<XMark className="size-3" strokeWidth="2" />
+					<Plus className="size-3.5" strokeWidth="2.5" />
+					<span>{$i18n.t('Add Target')}</span>
 				</button>
-			{/if}
+			</div>
+		</div>
+	</div>
+
+	<div class="targets-shell targets-shell--dense">
+		<div class="px-3.5 pt-3 pb-2.5">
+			<ScanProgressPanel targetId={$activeTargetId} title="Scan Progress" />
 		</div>
 
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-2 px-0.5">
-			<div>
-				<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Type')}</div>
-				<select
-					class="w-full text-sm bg-white/70 dark:bg-slate-900/45 border border-sky-100/80 dark:border-sky-900/40 outline-hidden rounded-lg px-2 py-1"
-					bind:value={typeFilter}
-				>
-					{#each targetTypes as option}
-						<option value={option}>{option === 'all' ? $i18n.t('All Types') : option}</option>
-					{/each}
-				</select>
+		<div class="px-3.5 flex flex-col gap-3.5 pb-3.5">
+			<div
+				class="flex items-center w-full space-x-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/70 bg-white/82 dark:bg-slate-900/55 px-3 py-2.5"
+			>
+				<div class="self-center text-slate-500 dark:text-slate-400">
+					<Search className="size-4" />
+				</div>
+				<input
+					class="w-full text-sm md:text-[15px] leading-6 py-0.5 outline-hidden bg-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500"
+					bind:value={query}
+					placeholder={$i18n.t('Search targets by name, value, or description')}
+					aria-label={$i18n.t('Search Targets')}
+				/>
+				{#if query}
+					<button
+						class="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+						aria-label={$i18n.t('Clear search')}
+						on:click={() => {
+							query = '';
+						}}
+					>
+						<XMark className="size-3.5" strokeWidth="2" />
+					</button>
+				{/if}
 			</div>
-			<div>
-				<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Status')}</div>
-				<select
-					class="w-full text-sm bg-white/70 dark:bg-slate-900/45 border border-sky-100/80 dark:border-sky-900/40 outline-hidden rounded-lg px-2 py-1"
-					bind:value={statusFilter}
-				>
-					{#each statusOptions as option}
-						<option value={option}>{option === 'all' ? $i18n.t('All Statuses') : option}</option>
-					{/each}
-				</select>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-0.5">
+				<div>
+					<div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+						{$i18n.t('Type')}
+					</div>
+					<select
+						class="targets-select w-full text-sm md:text-[15px] outline-hidden rounded-xl px-3 py-2"
+						bind:value={typeFilter}
+					>
+						{#each targetTypes as option}
+							<option value={option}>{option === 'all' ? $i18n.t('All Types') : option}</option>
+						{/each}
+					</select>
+				</div>
+				<div>
+					<div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+						{$i18n.t('Status')}
+					</div>
+					<select
+						class="targets-select w-full text-sm md:text-[15px] outline-hidden rounded-xl px-3 py-2"
+						bind:value={statusFilter}
+					>
+						{#each statusOptions as option}
+							<option value={option}>{option === 'all' ? $i18n.t('All Statuses') : option}</option>
+						{/each}
+					</select>
+				</div>
 			</div>
 		</div>
 	</div>
 
 	{#if filteredTargets.length > 0}
-		<div class="my-2 px-3 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-2">
+		<div class="my-2 px-3 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
 			{#each filteredTargets as target (target.id)}
 				<TargetCard
 					{target}
 					on:run={(event) => {
 						setActiveTarget(event.detail);
 						queueTargetScan(event.detail);
+						startScanQueue();
 					}}
 					on:toggle={(event) => {
 						toggleTargetStatus(event.detail);
@@ -164,14 +185,52 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="w-full h-full flex flex-col justify-center items-center my-16 mb-24">
-			<div class="max-w-md text-center">
+		<div class="w-full h-full flex flex-col justify-center items-center my-16 mb-24 px-4">
+			<div
+				class="max-w-md text-center rounded-3xl border border-dashed border-slate-200/80 dark:border-slate-800/65 bg-white/60 dark:bg-slate-900/35 px-6 py-8"
+			>
 				<div class="text-3xl mb-3">🎯</div>
-				<div class="text-lg font-medium mb-1">{$i18n.t('No targets found')}</div>
-				<div class="text-gray-500 text-center text-xs">
+				<div class="text-lg font-semibold mb-1.5">{$i18n.t('No targets found')}</div>
+				<div class="text-sm leading-6 text-slate-500 dark:text-slate-400 text-center">
 					{$i18n.t('Try adjusting your search or filter, or add a new target asset.')}
 				</div>
 			</div>
 		</div>
 	{/if}
 </div>
+
+<style>
+	.targets-shell {
+		border: 1px solid rgba(148, 163, 184, 0.26);
+		border-radius: 28px;
+		background: rgba(255, 255, 255, 0.84);
+		box-shadow:
+			0 1px 0 0 rgba(255, 255, 255, 0.72) inset,
+			0 10px 26px rgba(15, 23, 42, 0.06);
+		backdrop-filter: blur(16px);
+	}
+
+	:global(.dark) .targets-shell {
+		border-color: rgba(51, 65, 85, 0.8);
+		background: rgba(15, 23, 42, 0.62);
+		box-shadow:
+			0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+			0 12px 30px rgba(0, 0, 0, 0.28);
+	}
+
+	.targets-shell--dense {
+		padding-top: 0.25rem;
+	}
+
+	.targets-select {
+		background: rgba(255, 255, 255, 0.82);
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		color: rgb(15, 23, 42);
+	}
+
+	:global(.dark) .targets-select {
+		background: rgba(15, 23, 42, 0.58);
+		border-color: rgba(51, 65, 85, 0.8);
+		color: rgb(226, 232, 240);
+	}
+</style>

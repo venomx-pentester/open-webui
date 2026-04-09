@@ -74,7 +74,11 @@ export const connectToRun = (targetId: string, runId: string) => {
 			const event: AgentEvent = JSON.parse(msg.data);
 			applyAgentEvent(targetId, event);
 
-			if (event.type === '__done__' || event.type === 'run_complete' || event.type === 'run_error') {
+			if (
+				event.type === '__done__' ||
+				event.type === 'run_complete' ||
+				event.type === 'run_error'
+			) {
 				disconnectRun(targetId);
 			}
 		} catch {
@@ -84,7 +88,11 @@ export const connectToRun = (targetId: string, runId: string) => {
 
 	es.onerror = () => {
 		const current = connections.get(targetId);
-		if (current && current.runId === runId && current.eventSource.readyState === EventSource.CLOSED) {
+		if (
+			current &&
+			current.runId === runId &&
+			current.eventSource.readyState === EventSource.CLOSED
+		) {
 			disconnectRun(targetId);
 		}
 	};
@@ -117,8 +125,8 @@ export const resumeAgentRun = async (runId: string): Promise<boolean> => {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${localStorage.token}`,
-				'Content-Type': 'application/json',
-			},
+				'Content-Type': 'application/json'
+			}
 		});
 		return res.ok;
 	} catch {

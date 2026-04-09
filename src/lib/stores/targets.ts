@@ -9,13 +9,155 @@ import {
 	startScanSession
 } from '$lib/stores/scanSessions';
 
-const initialTargets: Target[] = [];
+const TARGETS_STORAGE_KEY = 'venomx:targets';
+const ACTIVE_TARGET_STORAGE_KEY = 'venomx:targets:active';
+
+const isTargetType = (value: unknown): value is Target['type'] =>
+	value === 'Domain' || value === 'IP' || value === 'URL' || value === 'CIDR' || value === 'Host';
+
+const isTargetStatus = (value: unknown): value is Target['status'] =>
+	value === 'Active' ||
+	value === 'Pending' ||
+	value === 'Paused' ||
+	value === 'Complete' ||
+	value === 'Error';
+
+const isValidTarget = (value: unknown): value is Target => {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+
+	const candidate = value as Partial<Target>;
+	return (
+		typeof candidate.id === 'string' &&
+		typeof candidate.name === 'string' &&
+		isTargetType(candidate.type) &&
+		typeof candidate.value === 'string' &&
+		isTargetStatus(candidate.status) &&
+		(candidate.lastScan === null || typeof candidate.lastScan === 'string') &&
+		typeof candidate.description === 'string'
+	);
+};
+
+const readPersistedTargets = (): Target[] => {
+	if (typeof window === 'undefined') {
+		return [];
+	}
+
+	try {
+		const raw = localStorage.getItem(TARGETS_STORAGE_KEY);
+		if (!raw) {
+			return [];
+		}
+
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+
+		return parsed.filter(isValidTarget);
+	} catch {
+		return [];
+	}
+};
+
+const readPersistedActiveTargetId = (targetList: Target[]): string | null => {
+	if (typeof window === 'undefined') {
+		return targetList[0]?.id ?? null;
+	}
+
+	const savedId = localStorage.getItem(ACTIVE_TARGET_STORAGE_KEY);
+	if (!savedId) {
+		return targetList[0]?.id ?? null;
+	}
+
+	return targetList.some((target) => target.id === savedId) ? savedId : (targetList[0]?.id ?? null);
+};
+
+const persistTargets = (targetList: Target[]) => {
+	if (typeof window === 'undefined') {
+		return;
+	}
+
+	try {
+		if (targetList.length === 0) {
+			localStorage.removeItem(TARGETS_STORAGE_KEY);
+			return;
+		}
+
+		localStorage.setItem(TARGETS_STORAGE_KEY, JSON.stringify(targetList));
+	} catch {
+		// no-op: persistence failure should never block runtime updates
+	}
+};
+
+const persistActiveTargetId = (id: string | null) => {
+	if (typeof window === 'undefined') {
+		return;
+	}
+
+	try {
+		if (!id) {
+			localStorage.removeItem(ACTIVE_TARGET_STORAGE_KEY);
+			return;
+		}
+
+		localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, id);
+	} catch {
+		// no-op
+	}
+};
+
+const normalizeTargetToken = (value: string) => value.trim().toLowerCase();
+
+const targetFingerprint = (target: Target) =>
+	`${target.type}|${normalizeTargetToken(target.name)}|${normalizeTargetToken(target.value)}`;
+
+const dedupeTargets = (targetList: Target[]): Target[] => {
+	const seenIds = new Set<string>();
+	const seenFingerprints = new Set<string>();
+	const deduped: Target[] = [];
+
+	for (const target of targetList) {
+		if (seenIds.has(target.id)) {
+			continue;
+		}
+
+		const fp = targetFingerprint(target);
+		if (seenFingerprints.has(fp)) {
+			continue;
+		}
+
+		seenIds.add(target.id);
+		seenFingerprints.add(fp);
+		deduped.push(target);
+	}
+
+	return deduped;
+};
+
+const initialTargets: Target[] = dedupeTargets(readPersistedTargets());
 
 export const targets = writable<Target[]>(initialTargets);
-export const activeTargetId = writable<string | null>(initialTargets[0]?.id ?? null);
+export const activeTargetId = writable<string | null>(readPersistedActiveTargetId(initialTargets));
 export const scanQueue = writable<string[]>([]);
 export const isScanQueueRunning = writable(false);
 export const activeQueueTargetId = writable<string | null>(null);
+
+targets.subscribe((targetList) => {
+	persistTargets(targetList);
+
+	const currentActiveId = get(activeTargetId);
+	if (!currentActiveId || targetList.some((target) => target.id === currentActiveId)) {
+		return;
+	}
+
+	activeTargetId.set(targetList[0]?.id ?? null);
+});
+
+activeTargetId.subscribe((id) => {
+	persistActiveTargetId(id);
+});
 
 export const activeTarget = derived([targets, activeTargetId], ([$targets, $activeTargetId]) => {
 	if (!$activeTargetId) {
@@ -35,6 +177,25 @@ const formatTimestamp = (value = new Date()) => {
 	return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}`;
 };
 
+type SessionTargetSnapshot = {
+	targetId: string;
+	targetName: string;
+	lifecycle: 'queued' | 'running' | 'paused' | 'complete' | 'error';
+	endedAt?: number | null;
+	updatedAt?: number;
+};
+
+const statusFromLifecycle = (lifecycle: SessionTargetSnapshot['lifecycle']): Target['status'] =>
+	lifecycle === 'queued'
+		? 'Pending'
+		: lifecycle === 'running'
+			? 'Active'
+			: lifecycle === 'paused'
+				? 'Paused'
+				: lifecycle === 'complete'
+					? 'Complete'
+					: 'Error';
+
 let queueAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const clearQueueAdvanceTimer = () => {
@@ -51,8 +212,18 @@ const triggerNextQueuedScan = () => {
 		return;
 	}
 
-	if (get(activeQueueTargetId)) {
-		return;
+	const activeTargetId = get(activeQueueTargetId);
+	if (activeTargetId) {
+		const activeSession = get(scanSessions)[activeTargetId];
+		if (
+			activeSession &&
+			activeSession.lifecycle !== 'complete' &&
+			activeSession.lifecycle !== 'error'
+		) {
+			return;
+		}
+
+		activeQueueTargetId.set(null);
 	}
 
 	const queue = get(scanQueue);
@@ -122,6 +293,8 @@ scanSessions.subscribe(($scanSessions) => {
 
 	const currentSession = $scanSessions[currentQueueTarget];
 	if (!currentSession) {
+		activeQueueTargetId.set(null);
+		triggerNextQueuedScan();
 		return;
 	}
 
@@ -235,6 +408,64 @@ export const createPromptTarget = (prompt: string) => {
 	return id;
 };
 
+/**
+ * Ensure target cards exist for restored sessions, so the workspace target view
+ * is not empty when scan session state was restored from storage first.
+ */
+export const restoreTargetsFromSessions = (sessionSnapshots: SessionTargetSnapshot[]) => {
+	if (!Array.isArray(sessionSnapshots) || sessionSnapshots.length === 0) {
+		return;
+	}
+
+	targets.update((currentTargets) => {
+		const existingIds = new Set(currentTargets.map((target) => target.id));
+		const existingFingerprints = new Set(currentTargets.map((target) => targetFingerprint(target)));
+		const additions: Target[] = [];
+
+		for (const session of sessionSnapshots) {
+			if (!session?.targetId || existingIds.has(session.targetId)) {
+				continue;
+			}
+
+			const candidateName = (session.targetName || 'Restored Target').trim();
+			const candidateValue = candidateName || session.targetId;
+			const candidateType: Target['type'] = 'Host';
+			const candidateFingerprint = `${candidateType}|${normalizeTargetToken(candidateName)}|${normalizeTargetToken(candidateValue)}`;
+			if (existingFingerprints.has(candidateFingerprint)) {
+				continue;
+			}
+
+			existingIds.add(session.targetId);
+			existingFingerprints.add(candidateFingerprint);
+			additions.push({
+				id: session.targetId,
+				name: candidateName,
+				type: candidateType,
+				value: candidateValue,
+				status: statusFromLifecycle(session.lifecycle),
+				lastScan:
+					session.lifecycle === 'complete' || session.lifecycle === 'error'
+						? formatTimestamp(new Date(session.endedAt ?? session.updatedAt ?? Date.now()))
+						: null,
+				description: 'Restored from previous scan session state.'
+			});
+		}
+
+		if (additions.length === 0) {
+			return dedupeTargets(currentTargets);
+		}
+
+		return dedupeTargets([...additions, ...currentTargets]);
+	});
+
+	if (!get(activeTargetId)) {
+		const firstSessionTargetId = sessionSnapshots[0]?.targetId ?? null;
+		if (firstSessionTargetId) {
+			activeTargetId.set(firstSessionTargetId);
+		}
+	}
+};
+
 export const queueTargetScan = (id: string) => {
 	if (!get(targets).some((item) => item.id === id)) {
 		return;
@@ -252,6 +483,17 @@ export const queueTargetScan = (id: string) => {
 	);
 };
 
+export const queueAndStartTargetScan = (id: string) => {
+	queueTargetScan(id);
+
+	if (!get(isScanQueueRunning)) {
+		startScanQueue();
+		return;
+	}
+
+	triggerNextQueuedScan();
+};
+
 export const removeFromScanQueue = (id: string) => {
 	scanQueue.update((currentQueue) => currentQueue.filter((targetId) => targetId !== id));
 	if (get(activeQueueTargetId) === id) {
@@ -260,11 +502,14 @@ export const removeFromScanQueue = (id: string) => {
 };
 
 export const startScanQueue = () => {
-	if (get(isScanQueueRunning) || get(scanQueue).length === 0) {
+	if (get(scanQueue).length === 0) {
 		return;
 	}
 
-	isScanQueueRunning.set(true);
+	if (!get(isScanQueueRunning)) {
+		isScanQueueRunning.set(true);
+	}
+
 	triggerNextQueuedScan();
 };
 

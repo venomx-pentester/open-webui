@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-	import { confirmPhase2, skipExploitation, setReviewed, getScanSessionForTarget } from '$lib/stores/scanSessions';
+	import {
+		confirmPhase2,
+		skipExploitation,
+		setReviewed,
+		getScanSessionForTarget
+	} from '$lib/stores/scanSessions';
 	import { resumeAgentRun } from '$lib/stores/agentRunnerStream';
 
 	export let targetId: string;
@@ -22,8 +27,12 @@
 	const act = async (index: number) => {
 		if (index === 0) {
 			const session = getScanSessionForTarget(targetId);
+			let resumed = true;
 			if (session?.agentRunId) {
-				await resumeAgentRun(session.agentRunId);
+				resumed = await resumeAgentRun(session.agentRunId);
+			}
+			if (!resumed) {
+				return;
 			}
 			confirmPhase2(targetId);
 			dispatch('close');
@@ -71,27 +80,29 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
-	class="fixed inset-0 z-[200] bg-black/40 dark:bg-black/55 backdrop-blur-sm animate-fade-in"
+	class="fixed inset-0 z-[200] bg-slate-950/45 dark:bg-black/60 backdrop-blur-sm animate-fade-in"
 	on:click|self={() => {
 		setReviewed(targetId);
 		dispatch('close');
 	}}
 ></div>
 
-<!-- Card anchored near bottom -->
-<div class="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[201] w-[540px] max-w-[90vw]">
+<!-- Card centered -->
+<div class="fixed inset-0 z-[201] grid place-items-center p-4 md:p-6 pointer-events-none">
 	<div
-		class="w-full rounded-2xl border border-sky-100/80 dark:border-sky-900/55 bg-white/95 dark:bg-slate-950/90 backdrop-blur-xl shadow-2xl overflow-hidden animate-slide-up"
+		class="pointer-events-auto w-full max-w-[680px] rounded-2xl border border-slate-200/80 dark:border-slate-800/70 bg-white/95 dark:bg-slate-950/92 backdrop-blur-xl shadow-2xl overflow-hidden animate-slide-up"
 	>
 		<!-- Header -->
 		<div
-			class="flex items-center justify-between px-3.5 py-2.5 border-b border-sky-100/70 dark:border-sky-900/45"
+			class="flex items-center justify-between px-4 py-3 border-b border-slate-200/80 dark:border-slate-800/70"
 		>
-			<div class="text-[13px] font-semibold">
+			<div
+				class="text-[22px] leading-tight font-semibold tracking-tight text-slate-900 dark:text-slate-100"
+			>
 				Phase 1 complete — proceed with exploitation?
 			</div>
 			<button
-				class="w-6 h-6 rounded-md grid place-items-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-[13px]"
+				class="w-7 h-7 rounded-md grid place-items-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/70 transition-colors text-[14px]"
 				on:click={() => {
 					setReviewed(targetId);
 					dispatch('close');
@@ -107,32 +118,34 @@
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<div
-					class="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-colors
-						{i > 0 ? 'border-t border-sky-100/50 dark:border-sky-900/35' : ''}
+					class="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
+						{i > 0 ? 'border-t border-slate-200/70 dark:border-slate-800/65' : ''}
 						{selected === i
-						? 'bg-blue-50/60 dark:bg-blue-900/10'
-						: 'hover:bg-slate-50/60 dark:hover:bg-slate-900/20'}"
+						? 'bg-cyan-50/70 dark:bg-cyan-900/12'
+						: 'hover:bg-slate-50/70 dark:hover:bg-slate-900/35'}"
 					on:click={() => act(i)}
 					on:mouseenter={() => (selected = i)}
 				>
 					<!-- Number badge -->
 					<div
-						class="w-[22px] h-[22px] rounded-md grid place-items-center font-mono text-[11px] font-semibold flex-shrink-0 border transition-colors
+						class="w-[26px] h-[26px] rounded-md grid place-items-center font-mono text-[12px] font-semibold flex-shrink-0 border transition-colors
 							{selected === i
-							? 'bg-blue-100/80 dark:bg-blue-900/25 border-blue-300/60 dark:border-blue-700/40 text-blue-600 dark:text-blue-400'
-							: 'bg-slate-100/80 dark:bg-slate-800/60 border-sky-100/70 dark:border-sky-900/40 text-gray-400 dark:text-gray-500'}"
+							? 'bg-cyan-100/85 dark:bg-cyan-900/25 border-cyan-300/70 dark:border-cyan-700/45 text-cyan-700 dark:text-cyan-300'
+							: 'bg-slate-100/90 dark:bg-slate-800/70 border-slate-200/80 dark:border-slate-700/60 text-slate-500 dark:text-slate-400'}"
 					>
 						{i + 1}
 					</div>
 
 					<!-- Content -->
 					<div class="flex-1 min-w-0">
-						<div class="text-[13px] font-medium">{opt.label}</div>
 						<div
-							class="text-[11px] mt-0.5 transition-colors
-								{selected === i
-								? 'text-gray-500 dark:text-gray-400'
-								: 'text-gray-400 dark:text-gray-500'}"
+							class="text-[16px] md:text-[17px] leading-6 font-semibold tracking-tight text-slate-900 dark:text-slate-100"
+						>
+							{opt.label}
+						</div>
+						<div
+							class="text-[13px] md:text-[14px] mt-0.5 transition-colors leading-6 md:leading-5
+								{selected === i ? 'text-slate-600 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}"
 						>
 							{opt.desc}
 						</div>
@@ -140,10 +153,8 @@
 
 					<!-- Arrow -->
 					<div
-						class="text-[13px] transition-opacity
-							{selected === i
-							? 'opacity-100 text-blue-500 dark:text-blue-400'
-							: 'opacity-0'}"
+						class="text-[16px] transition-opacity
+							{selected === i ? 'opacity-100 text-cyan-600 dark:text-cyan-300' : 'opacity-0'}"
 					>
 						→
 					</div>
@@ -153,17 +164,15 @@
 
 		<!-- Footer -->
 		<div
-			class="flex items-center justify-between px-3.5 py-2 border-t border-sky-100/70 dark:border-sky-900/45 bg-slate-50/60 dark:bg-black/15"
+			class="flex items-center justify-between px-4 py-2.5 border-t border-slate-200/80 dark:border-slate-800/65 bg-slate-50/70 dark:bg-slate-900/50"
 		>
-			<div
-				class="font-mono text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1"
-			>
+			<div class="font-mono text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
 				↑↓ navigate<span class="mx-1.5 opacity-40">·</span>Enter select<span
 					class="mx-1.5 opacity-40">·</span
 				>Esc dismiss
 			</div>
 			<button
-				class="text-[11px] font-medium px-3 py-1 rounded-md border border-sky-100/70 dark:border-sky-900/45 text-gray-500 dark:text-gray-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:text-gray-700 dark:hover:text-gray-200 transition"
+				class="text-[12px] font-medium px-3.5 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/70 text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/65 hover:text-slate-800 dark:hover:text-slate-100 transition"
 				on:click={skip}
 			>
 				Skip

@@ -5,11 +5,18 @@
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import {
 		scanSessions,
+		completeScanSession,
 		confirmPhase2,
 		skipExploitation,
 		type DispatchEntry
 	} from '$lib/stores/scanSessions';
-	import { activeRunTargetId, reconnectAgentStream } from '$lib/stores/agentRunnerStream';
+	import {
+		activeRunTargetId,
+		clearAgentHandshake,
+		disconnectRun,
+		isConnected,
+		reconnectAgentStream
+	} from '$lib/stores/agentRunnerStream';
 	import { activeQueueTargetId, activeTargetId } from '$lib/stores/targets';
 
 	const i18n = getContext<any>('i18n');
@@ -17,6 +24,7 @@
 
 	let elapsedDisplay = '00:00';
 	let elapsedInterval: ReturnType<typeof setInterval> | null = null;
+	let isStoppingRun = false;
 
 	const fmtElapsed = (ms: number) => {
 		const s = Math.floor(ms / 1000);
@@ -25,9 +33,30 @@
 		return m.toString().padStart(2, '0') + ':' + sec.toString().padStart(2, '0');
 	};
 
-	$: resolvedTargetId =
-		$activeRunTargetId ?? $activeQueueTargetId ?? $activeTargetId;
-	$: session = resolvedTargetId ? $scanSessions[resolvedTargetId] ?? null : null;
+	const isLiveLifecycle = (lifecycle: string | null | undefined) =>
+		lifecycle === 'queued' || lifecycle === 'running' || lifecycle === 'paused';
+
+	$: preferredTargetIds = [$activeRunTargetId, $activeQueueTargetId, $activeTargetId].filter(
+		(id): id is string => Boolean(id)
+	);
+	$: liveSessionEntry = (() => {
+		for (const id of preferredTargetIds) {
+			const candidate = $scanSessions[id];
+			if (candidate && isLiveLifecycle(candidate.lifecycle)) {
+				return { targetId: id, session: candidate };
+			}
+		}
+
+		for (const [id, candidate] of Object.entries($scanSessions)) {
+			if (candidate && isLiveLifecycle(candidate.lifecycle)) {
+				return { targetId: id, session: candidate };
+			}
+		}
+
+		return null;
+	})();
+	$: resolvedTargetId = liveSessionEntry?.targetId ?? null;
+	$: session = liveSessionEntry?.session ?? null;
 	$: isRunning = session?.lifecycle === 'running';
 	$: isPaused = session?.lifecycle === 'paused';
 	$: isComplete = session?.lifecycle === 'complete';
@@ -36,9 +65,7 @@
 	$: doneCount = session?.dispatches.filter((d) => d.status === 'done').length ?? 0;
 	$: totalCount = session?.dispatches.length ?? 0;
 	$: dispatchLine =
-		totalCount === 0
-			? 'Dispatch pipeline — pending'
-			: `${doneCount}/${totalCount} specialists`;
+		totalCount === 0 ? 'Dispatch pipeline — pending' : `${doneCount}/${totalCount} specialists`;
 	$: recentActivity = session ? [...session.activity].reverse().slice(0, 24) : [];
 
 	$: shortSessionRef = session?.id ? `${session.id.slice(0, 8)}…` : '';
@@ -87,6 +114,12 @@
 
 	const handleReconnectStream = () => {
 		if (!resolvedTargetId) return;
+
+		if (isConnected(resolvedTargetId)) {
+			toast.success($i18n.t('Agent stream is already attached.'));
+			return;
+		}
+
 		const ok = reconnectAgentStream(resolvedTargetId);
 		if (ok) {
 			toast.success($i18n.t('Reconnecting to agent stream…'));
@@ -99,6 +132,24 @@
 		}
 	};
 
+	const handleStopRun = async () => {
+		if (!resolvedTargetId) return;
+		if (isStoppingRun) return;
+
+		isStoppingRun = true;
+
+		if (isConnected(resolvedTargetId)) {
+			disconnectRun(resolvedTargetId);
+		}
+
+		clearAgentHandshake(resolvedTargetId);
+		completeScanSession(resolvedTargetId, {
+			errorMessage: 'Run was stopped by operator.'
+		});
+		toast.success($i18n.t('Run stopped'));
+		isStoppingRun = false;
+	};
+
 	const activityBorderClass = (msg: string): string => {
 		const m = msg.toLowerCase();
 		if (msg.includes('Running ')) return 'ar-act-tool';
@@ -108,11 +159,41 @@
 		if (msg.includes('Phase') || msg.includes('confirmation')) return 'ar-act-phase';
 		return 'ar-act-info';
 	};
+
+	const activityToneClass = (item: { message: string; stageId: string }): string => {
+		const base = activityBorderClass(item.message);
+
+		if (base === 'ar-act-ok' || base === 'ar-act-err' || base === 'ar-act-tool') {
+			return base;
+		}
+
+		if (item.stageId === 'queued') {
+			return 'ar-act-queued';
+		}
+
+		if (item.stageId === 'asset_validation') {
+			return 'ar-act-asset';
+		}
+
+		if (item.stageId === 'surface_enumeration') {
+			return 'ar-act-surface';
+		}
+
+		if (item.stageId === 'service_analysis') {
+			return 'ar-act-service';
+		}
+
+		if (item.stageId === 'findings_assembly') {
+			return session?.phase === 2 ? 'ar-act-exploit' : 'ar-act-findings';
+		}
+
+		return base;
+	};
 </script>
 
-<!-- Panel styled to match mockups/sidebar-demo.html (instrument column, not generic chat chrome) -->
+<!-- Panel styled as a neutral run inspector that matches the rest of the app -->
 <aside
-	class="agent-runner-panel h-full w-72 max-w-[18rem] flex flex-col overflow-y-auto scrollbar-hidden"
+	class="agent-runner-panel h-full w-80 max-w-[20rem] flex flex-col"
 	data-lifecycle={session?.lifecycle ?? 'idle'}
 	aria-label={$i18n.t('Agent Runner')}
 >
@@ -132,6 +213,9 @@
 					{$i18n.t('No active run')}
 				{/if}
 			</div>
+			<div class="ar-submeta">
+				{$i18n.t('Tracks the current pentest run, dispatches, and operator actions.')}
+			</div>
 		</div>
 		<div class="ar-header-actions">
 			<button
@@ -143,9 +227,9 @@
 							'Reconnect to the agent event stream (server replays events you may have missed)'
 						)
 					: $i18n.t(
-							'Requires a run ID — appears in chat when the agent run is acknowledged'
+							'Check attachment state or reconnect once a run ID is available from chat/agent events'
 						)}
-				disabled={!session?.agentRunId}
+				disabled={!resolvedTargetId}
 				on:click={handleReconnectStream}
 			>
 				<ArrowPath className="size-4" strokeWidth="2" />
@@ -160,12 +244,16 @@
 		<div class="ar-empty">
 			<div class="ar-empty-icon" aria-hidden="true">⬡</div>
 			<p class="ar-empty-copy">
-				Send <code class="ar-empty-code">/pentest &lt;target&gt;</code> in chat to start a penetration test
-				run.
+				Send <code class="ar-empty-code">/pentest &lt;target&gt;</code> in chat to start a run. The live
+				sidebar will stay pinned here while the agent is active.
 			</p>
 		</div>
 	{:else if session}
-		<div class="ar-scroll flex flex-col flex-1 min-h-0 gap-2.5">
+		<div
+			class="ar-scroll flex flex-col flex-1 min-h-0 gap-2.5 {isPaused && session?.reviewed
+				? 'ar-scroll-actions'
+				: ''}"
+		>
 			<!-- Run info (mockup: run-target → badges → run id) -->
 			<div class="ar-run-card">
 				<div class="ar-run-target">{session.targetName}</div>
@@ -179,7 +267,13 @@
 									? 'ar-badge-wait'
 									: 'ar-badge-run'}"
 					>
-						{isComplete ? 'Complete' : isError ? 'Error' : isPaused ? 'Awaiting Confirm' : 'Running'}
+						{isComplete
+							? 'Complete'
+							: isError
+								? 'Error'
+								: isPaused
+									? 'Awaiting Confirm'
+									: 'Running'}
 					</span>
 					<span class="ar-badge ar-badge-phase">Phase {session.phase || 1}</span>
 				</div>
@@ -199,7 +293,9 @@
 						<div class="ar-banner-title ar-banner-title-err">
 							Run failed{session.errorSpecialist ? ` at ${session.errorSpecialist}` : ''}
 						</div>
-						<div class="ar-banner-sub">{session.errorMessage ?? 'An unexpected error occurred.'}</div>
+						<div class="ar-banner-sub">
+							{session.errorMessage ?? 'An unexpected error occurred.'}
+						</div>
 					</div>
 				</div>
 			{:else if isComplete}
@@ -316,21 +412,23 @@
 
 			<!-- Activity -->
 			{#if recentActivity.length > 0}
-				<div class="ar-section-label">Live Activity</div>
-				<div class="ar-activity-list">
-					{#each recentActivity as item (item.id)}
-						<div class="ar-activity-item {activityBorderClass(item.message)}">
-							<div class="ar-activity-time">
-								{new Date(item.timestamp).toLocaleTimeString('en-US', {
-									hour12: false,
-									hour: '2-digit',
-									minute: '2-digit',
-									second: '2-digit'
-								})}
+				<div class="ar-activity-section">
+					<div class="ar-section-label">Live Activity</div>
+					<div class="ar-activity-list">
+						{#each recentActivity as item (item.id)}
+							<div class="ar-activity-item {activityToneClass(item)}">
+								<div class="ar-activity-time">
+									{new Date(item.timestamp).toLocaleTimeString('en-US', {
+										hour12: false,
+										hour: '2-digit',
+										minute: '2-digit',
+										second: '2-digit'
+									})}
+								</div>
+								<div class="ar-activity-msg">{item.message}</div>
 							</div>
-							<div class="ar-activity-msg">{item.message}</div>
-						</div>
-					{/each}
+						{/each}
+					</div>
 				</div>
 			{/if}
 		</div>
@@ -339,8 +437,13 @@
 	<!-- Footer -->
 	<div class="ar-footer">
 		{#if isRunning}
-			<button type="button" class="ar-btn ar-btn-stop">
-				{$i18n.t('Stop Run')}
+			<button
+				type="button"
+				class="ar-btn ar-btn-stop"
+				disabled={isStoppingRun}
+				on:click={handleStopRun}
+			>
+				{isStoppingRun ? $i18n.t('Stopping…') : $i18n.t('Stop Run')}
 			</button>
 		{/if}
 
@@ -368,55 +471,61 @@
 </aside>
 
 <style>
-	/* Tokens aligned with mockups/sidebar-demo.html — cool blue-tinted instrument panel */
+	/* Tokens for light mode; dark mode overrides are defined below. */
 	.agent-runner-panel {
-		--ar-border: rgba(56, 113, 194, 0.22);
-		--ar-border-soft: rgba(56, 113, 194, 0.14);
-		--ar-bg: rgba(15, 17, 23, 0.82);
-		--ar-card: rgba(20, 24, 33, 0.72);
-		--ar-text: #e2e8f0;
-		--ar-muted: #8896ab;
-		--ar-dim: #5a6578;
-		--ar-accent: #3b82f6;
-		--ar-accent-glow: rgba(59, 130, 246, 0.12);
-		--ar-cyan: #06b6d4;
-		--ar-green: #22c55e;
-		--ar-amber: #f59e0b;
-		--ar-red: #ef4444;
-		--ar-violet: #a78bfa;
+		--ar-border: rgba(148, 163, 184, 0.26);
+		--ar-border-soft: rgba(148, 163, 184, 0.18);
+		--ar-bg: rgba(255, 255, 255, 0.86);
+		--ar-card: rgba(248, 250, 252, 0.94);
+		--ar-text: #0f172a;
+		--ar-muted: #64748b;
+		--ar-dim: #94a3b8;
+		--ar-accent: #0f172a;
+		--ar-accent-glow: rgba(15, 23, 42, 0.06);
+		--ar-cyan: #0f766e;
+		--ar-green: #15803d;
+		--ar-amber: #b45309;
+		--ar-red: #b91c1c;
+		--ar-violet: #4f46e5;
 
-		padding: 10px;
-		border-radius: 16px;
+		padding: 12px;
+		border-radius: 18px;
 		border: 1px solid var(--ar-border-soft);
 		background: var(--ar-bg);
 		backdrop-filter: blur(20px) saturate(1.35);
 		box-shadow:
 			0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
-			0 12px 40px rgba(0, 0, 0, 0.35);
+			0 12px 32px rgba(15, 23, 42, 0.08);
 		color: var(--ar-text);
 	}
 
-	:global(.light) .agent-runner-panel,
-	:global(html:not(.dark)) .agent-runner-panel {
-		--ar-border: rgba(56, 113, 194, 0.2);
-		--ar-border-soft: rgba(56, 113, 194, 0.12);
-		--ar-bg: rgba(255, 255, 255, 0.78);
-		--ar-card: rgba(248, 250, 252, 0.92);
-		--ar-text: #0f172a;
-		--ar-muted: #64748b;
-		--ar-dim: #94a3b8;
-		--ar-accent-glow: rgba(59, 130, 246, 0.08);
+	:global(.dark) .agent-runner-panel,
+	:global(html.dark) .agent-runner-panel {
+		--ar-border: rgba(51, 65, 85, 0.72);
+		--ar-border-soft: rgba(51, 65, 85, 0.52);
+		--ar-bg: rgba(15, 23, 42, 0.9);
+		--ar-card: rgba(15, 23, 42, 0.72);
+		--ar-text: #e2e8f0;
+		--ar-muted: #94a3b8;
+		--ar-dim: #64748b;
+		--ar-accent: #e2e8f0;
+		--ar-accent-glow: rgba(226, 232, 240, 0.08);
+		--ar-cyan: #67e8f9;
+		--ar-green: #4ade80;
+		--ar-amber: #fbbf24;
+		--ar-red: #f87171;
+		--ar-violet: #a78bfa;
 		box-shadow:
-			0 1px 0 0 rgba(255, 255, 255, 0.8) inset,
-			0 8px 28px rgba(15, 23, 42, 0.08);
+			0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+			0 14px 34px rgba(0, 0, 0, 0.24);
 	}
 
 	.ar-header {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 2px 2px 10px;
+		gap: 10px;
+		padding: 4px 4px 12px;
 		border-bottom: 1px solid var(--ar-border-soft);
 	}
 
@@ -427,17 +536,19 @@
 	}
 
 	.ar-title {
-		font-size: 14px;
+		font-size: 17px;
 		font-weight: 700;
-		letter-spacing: -0.01em;
+		letter-spacing: -0.015em;
 		color: var(--ar-text);
+		line-height: 1.2;
 	}
 
 	.ar-meta {
-		font-size: 11px;
+		font-size: 12px;
+		font-weight: 500;
 		color: var(--ar-muted);
-		margin-top: 2px;
-		line-height: 1.35;
+		margin-top: 4px;
+		line-height: 1.45;
 	}
 
 	.ar-pulse {
@@ -467,8 +578,8 @@
 	}
 
 	.ar-icon-btn {
-		width: 28px;
-		height: 28px;
+		width: 30px;
+		height: 30px;
 		border-radius: 8px;
 		border: none;
 		background: transparent;
@@ -476,11 +587,13 @@
 		display: grid;
 		place-items: center;
 		cursor: pointer;
-		transition: background 0.15s ease, color 0.15s ease;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease;
 	}
 
 	.ar-icon-btn:hover:not(:disabled) {
-		background: rgba(255, 255, 255, 0.06);
+		background: rgba(15, 23, 42, 0.06);
 		color: var(--ar-text);
 	}
 
@@ -489,9 +602,9 @@
 		cursor: not-allowed;
 	}
 
-	:global(.light) .ar-icon-btn:hover:not(:disabled),
-	:global(html:not(.dark)) .ar-icon-btn:hover:not(:disabled) {
-		background: rgba(15, 23, 42, 0.06);
+	:global(.dark) .ar-icon-btn:hover:not(:disabled),
+	:global(html.dark) .ar-icon-btn:hover:not(:disabled) {
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.ar-empty {
@@ -501,7 +614,7 @@
 		align-items: center;
 		justify-content: center;
 		text-align: center;
-		padding: 32px 16px;
+		padding: 36px 18px;
 		gap: 12px;
 	}
 
@@ -512,10 +625,10 @@
 	}
 
 	.ar-empty-copy {
-		font-size: 12px;
+		font-size: 14px;
 		color: var(--ar-dim);
-		max-width: 220px;
-		line-height: 1.55;
+		max-width: 260px;
+		line-height: 1.6;
 	}
 
 	.ar-empty-code {
@@ -524,36 +637,49 @@
 		padding: 2px 7px;
 		border-radius: 6px;
 		border: 1px solid var(--ar-border-soft);
-		background: rgba(0, 0, 0, 0.2);
-	}
-
-	:global(.light) .ar-empty-code,
-	:global(html:not(.dark)) .ar-empty-code {
 		background: rgba(241, 245, 249, 0.95);
 	}
 
+	:global(.dark) .ar-empty-code,
+	:global(html.dark) .ar-empty-code {
+		background: rgba(0, 0, 0, 0.2);
+	}
+
 	.ar-scroll {
-		padding-top: 2px;
+		flex: 1;
+		min-height: 0;
+		padding-top: 4px;
+		overflow-y: auto;
+		overflow-x: hidden;
+		padding-right: 2px;
 	}
 
 	.ar-run-card {
-		margin-top: 6px;
-		padding: 10px 12px;
-		border-radius: 12px;
+		margin-top: 8px;
+		padding: 14px 15px;
+		border-radius: 14px;
 		border: 1px solid var(--ar-border-soft);
 		background: var(--ar-card);
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 7px;
 	}
 
 	.ar-run-target {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 13px;
+		font-size: 17px;
 		font-weight: 600;
 		color: var(--ar-cyan);
-		line-height: 1.3;
+		line-height: 1.45;
 		word-break: break-all;
+	}
+
+	.ar-submeta {
+		font-size: 12px;
+		line-height: 1.45;
+		color: var(--ar-dim);
+		margin-top: 6px;
+		max-width: 30ch;
 	}
 
 	.ar-badge-row {
@@ -564,9 +690,9 @@
 	}
 
 	.ar-badge {
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 600;
-		padding: 3px 8px;
+		padding: 4px 9px;
 		border-radius: 999px;
 		line-height: 1;
 		letter-spacing: 0.02em;
@@ -605,10 +731,10 @@
 
 	.ar-run-id {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 10px;
+		font-size: 11px;
 		color: var(--ar-dim);
 		word-break: break-all;
-		line-height: 1.35;
+		line-height: 1.45;
 	}
 
 	.ar-run-id-muted {
@@ -618,24 +744,24 @@
 
 	.ar-session-ref {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 9px;
+		font-size: 10px;
 		color: var(--ar-dim);
 		opacity: 0.85;
 	}
 
 	.ar-banner {
-		margin-top: 8px;
-		padding: 8px 10px;
-		border-radius: 10px;
-		font-size: 11px;
+		margin-top: 10px;
+		padding: 10px 11px;
+		border-radius: 12px;
+		font-size: 13px;
 		display: flex;
 		align-items: flex-start;
-		gap: 8px;
-		line-height: 1.45;
+		gap: 9px;
+		line-height: 1.5;
 	}
 
 	.ar-banner-ic {
-		font-size: 14px;
+		font-size: 15px;
 		line-height: 1;
 		margin-top: 1px;
 		flex-shrink: 0;
@@ -647,8 +773,9 @@
 	}
 
 	.ar-banner-sub {
-		font-size: 10px;
+		font-size: 12px;
 		color: var(--ar-muted);
+		line-height: 1.55;
 	}
 
 	.ar-banner-err {
@@ -685,7 +812,7 @@
 	.ar-progress-head {
 		display: flex;
 		justify-content: space-between;
-		font-size: 11px;
+		font-size: 12px;
 		color: var(--ar-muted);
 		margin-bottom: 5px;
 	}
@@ -695,7 +822,7 @@
 	}
 
 	.ar-track {
-		height: 6px;
+		height: 8px;
 		border-radius: 999px;
 		background: rgba(59, 130, 246, 0.12);
 		overflow: hidden;
@@ -710,7 +837,7 @@
 	}
 
 	.ar-fill-run {
-		background: linear-gradient(90deg, #3b82f6, #06b6d4);
+		background: linear-gradient(90deg, #0f172a, #334155);
 	}
 
 	.ar-fill-run::after {
@@ -726,7 +853,7 @@
 	}
 
 	.ar-fill-paused {
-		background: linear-gradient(90deg, #f59e0b, #fbbf24);
+		background: linear-gradient(90deg, #b45309, #d97706);
 	}
 
 	@keyframes ar-shimmer {
@@ -740,52 +867,52 @@
 	}
 
 	.ar-hint {
-		font-size: 10px;
+		font-size: 11px;
 		color: var(--ar-muted);
 		margin-top: 6px;
-		line-height: 1.45;
+		line-height: 1.5;
 	}
 
 	.ar-hint-code {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 9px;
-		padding: 0 3px;
-		border-radius: 3px;
-		background: rgba(0, 0, 0, 0.2);
+		font-size: 10px;
+		padding: 0 4px;
+		border-radius: 4px;
+		background: rgba(241, 245, 249, 1);
 	}
 
-	:global(.light) .ar-hint-code,
-	:global(html:not(.dark)) .ar-hint-code {
-		background: rgba(241, 245, 249, 1);
+	:global(.dark) .ar-hint-code,
+	:global(html.dark) .ar-hint-code {
+		background: rgba(0, 0, 0, 0.2);
 	}
 
 	.ar-stat-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 6px;
+		gap: 10px;
 		margin-top: 8px;
 	}
 
 	.ar-stat-card {
-		padding: 8px 10px;
-		border-radius: 10px;
+		padding: 12px 12px;
+		border-radius: 12px;
 		border: 1px solid var(--ar-border-soft);
 		background: var(--ar-card);
 	}
 
 	.ar-stat-label {
-		font-size: 10px;
+		font-size: 12px;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--ar-dim);
 	}
 
 	.ar-stat-value {
-		font-size: 12px;
+		font-size: 14px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		margin-top: 3px;
+		margin-top: 4px;
 		color: var(--ar-text);
 	}
 
@@ -793,7 +920,7 @@
 		font-size: 11px;
 		font-weight: 600;
 		color: var(--ar-muted);
-		margin: 10px 0 6px 2px;
+		margin: 12px 0 7px 2px;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 	}
@@ -802,18 +929,24 @@
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
+		max-height: min(24vh, 180px);
+		overflow-y: auto;
+		overflow-x: hidden;
+		overscroll-behavior: contain;
+		scrollbar-gutter: stable;
+		padding-right: 2px;
 	}
 
 	.ar-dispatch {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 6px 10px;
-		border-radius: 10px;
+		padding: 8px 10px;
+		border-radius: 12px;
 		border: 1px solid var(--ar-border-soft);
 		background: var(--ar-card);
-		font-size: 11px;
-		min-height: 32px;
+		font-size: 12px;
+		min-height: 36px;
 		transition:
 			border-color 0.2s ease,
 			background 0.2s ease;
@@ -843,12 +976,12 @@
 	}
 
 	.ar-dispatch-ic {
-		width: 18px;
-		height: 18px;
-		border-radius: 6px;
+		width: 20px;
+		height: 20px;
+		border-radius: 7px;
 		display: grid;
 		place-items: center;
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 700;
 		flex-shrink: 0;
 		background: rgba(100, 116, 139, 0.15);
@@ -879,6 +1012,10 @@
 		font-weight: 600;
 		flex-shrink: 0;
 		color: var(--ar-text);
+		max-width: 9.5rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.ar-dispatch-detail {
@@ -887,78 +1024,211 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 10px;
+		font-size: 11px;
 		color: var(--ar-dim);
 	}
 
 	.ar-dispatch-nodes {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 10px;
+		font-size: 11px;
 		color: var(--ar-green);
 		flex-shrink: 0;
 	}
 
 	.ar-dispatch-empty {
-		border-radius: 12px;
+		border-radius: 14px;
 		border: 1px dashed var(--ar-border-soft);
 		background: rgba(59, 130, 246, 0.04);
 		padding: 10px 12px;
-		font-size: 10px;
+		font-size: 11px;
 		color: var(--ar-muted);
-		line-height: 1.45;
+		line-height: 1.5;
+	}
+
+	.ar-activity-section {
+		display: block;
+		flex: 0 0 auto;
+		min-height: auto;
 	}
 
 	.ar-activity-list {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
-		max-height: min(40vh, 320px);
+		gap: 6px;
+		flex: 0 0 auto;
+		min-height: 9rem;
+		max-height: min(34vh, 250px);
 		overflow-y: auto;
+		overflow-x: hidden;
+		overscroll-behavior: contain;
+		scrollbar-gutter: stable;
 		padding-bottom: 4px;
 	}
 
+	.ar-scroll-actions .ar-activity-list {
+		min-height: 8rem;
+		max-height: min(28vh, 200px);
+	}
+
 	.ar-activity-item {
-		padding: 5px 8px;
-		border-radius: 8px;
-		font-size: 10px;
-		line-height: 1.45;
+		padding: 8px 10px;
+		border-radius: 10px;
+		font-size: 12px;
+		line-height: 1.5;
 		border-left: 2px solid transparent;
+		border: 1px solid var(--ar-border-soft);
+		background: var(--ar-card);
 	}
 
 	.ar-act-tool {
 		border-left-color: var(--ar-accent);
-		background: rgba(59, 130, 246, 0.06);
+		background: rgba(15, 23, 42, 0.05);
 	}
 	.ar-act-ok {
 		border-left-color: var(--ar-green);
-		background: rgba(34, 197, 94, 0.05);
+		background: rgba(34, 197, 94, 0.1);
 	}
 	.ar-act-err {
 		border-left-color: var(--ar-red);
-		background: rgba(239, 68, 68, 0.06);
+		background: rgba(239, 68, 68, 0.1);
 	}
 	.ar-act-dispatch {
 		border-left-color: var(--ar-violet);
-		background: rgba(139, 92, 246, 0.06);
+		background: rgba(79, 70, 229, 0.08);
 	}
 	.ar-act-phase {
 		border-left-color: var(--ar-amber);
-		background: rgba(245, 158, 11, 0.06);
+		background: rgba(245, 158, 11, 0.1);
 	}
 	.ar-act-info {
 		border-left-color: var(--ar-dim);
-		background: rgba(148, 163, 184, 0.06);
+		background: rgba(148, 163, 184, 0.12);
+	}
+
+	.ar-act-queued {
+		border-left-color: #64748b;
+		background: rgba(148, 163, 184, 0.14);
+	}
+
+	.ar-act-asset {
+		border-left-color: #0ea5e9;
+		background: rgba(14, 165, 233, 0.12);
+	}
+
+	.ar-act-surface {
+		border-left-color: #3b82f6;
+		background: rgba(59, 130, 246, 0.12);
+	}
+
+	.ar-act-service {
+		border-left-color: #8b5cf6;
+		background: rgba(139, 92, 246, 0.12);
+	}
+
+	.ar-act-findings {
+		border-left-color: #f59e0b;
+		background: rgba(245, 158, 11, 0.12);
+	}
+
+	.ar-act-exploit {
+		border-left-color: #22c55e;
+		background: rgba(34, 197, 94, 0.12);
+	}
+
+	:global(.dark) .ar-fill-run,
+	:global(html.dark) .ar-fill-run {
+		background: linear-gradient(90deg, #67e8f9, #22d3ee);
+	}
+
+	:global(.dark) .ar-fill-paused,
+	:global(html.dark) .ar-fill-paused {
+		background: linear-gradient(90deg, #f59e0b, #fbbf24);
+	}
+
+	:global(.dark) .ar-act-tool,
+	:global(html.dark) .ar-act-tool {
+		background: rgba(103, 232, 249, 0.13);
+	}
+
+	:global(.dark) .ar-act-queued,
+	:global(html.dark) .ar-act-queued {
+		background: rgba(100, 116, 139, 0.2);
+	}
+
+	:global(.dark) .ar-act-asset,
+	:global(html.dark) .ar-act-asset {
+		background: rgba(14, 165, 233, 0.18);
+	}
+
+	:global(.dark) .ar-act-surface,
+	:global(html.dark) .ar-act-surface {
+		background: rgba(59, 130, 246, 0.18);
+	}
+
+	:global(.dark) .ar-act-service,
+	:global(html.dark) .ar-act-service {
+		background: rgba(139, 92, 246, 0.18);
+	}
+
+	:global(.dark) .ar-act-findings,
+	:global(html.dark) .ar-act-findings {
+		background: rgba(245, 158, 11, 0.2);
+	}
+
+	:global(.dark) .ar-act-exploit,
+	:global(html.dark) .ar-act-exploit {
+		background: rgba(34, 197, 94, 0.2);
+	}
+
+	:global(.dark) .ar-act-info,
+	:global(html.dark) .ar-act-info {
+		background: rgba(148, 163, 184, 0.18);
+	}
+
+	:global(.dark) .ar-activity-item,
+	:global(html.dark) .ar-activity-item {
+		border-color: rgba(51, 65, 85, 0.9);
 	}
 
 	.ar-activity-time {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 9px;
+		font-size: 10px;
 		color: var(--ar-dim);
-		margin-bottom: 1px;
+		margin-bottom: 2px;
 	}
 
 	.ar-activity-msg {
-		color: var(--ar-muted);
+		color: var(--ar-text);
+	}
+
+	/* Keep scrollbars visible and subtle for independent scroll regions */
+	.ar-scroll,
+	.ar-dispatch-list,
+	.ar-activity-list {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+	}
+
+	.ar-scroll::-webkit-scrollbar,
+	.ar-dispatch-list::-webkit-scrollbar,
+	.ar-activity-list::-webkit-scrollbar {
+		width: 8px;
+	}
+
+	.ar-scroll::-webkit-scrollbar-thumb,
+	.ar-dispatch-list::-webkit-scrollbar-thumb,
+	.ar-activity-list::-webkit-scrollbar-thumb {
+		background: rgba(100, 116, 139, 0.45);
+		border-radius: 999px;
+	}
+
+	:global(.dark) .ar-scroll::-webkit-scrollbar-thumb,
+	:global(.dark) .ar-dispatch-list::-webkit-scrollbar-thumb,
+	:global(.dark) .ar-activity-list::-webkit-scrollbar-thumb,
+	:global(html.dark) .ar-scroll::-webkit-scrollbar-thumb,
+	:global(html.dark) .ar-dispatch-list::-webkit-scrollbar-thumb,
+	:global(html.dark) .ar-activity-list::-webkit-scrollbar-thumb {
+		background: rgba(148, 163, 184, 0.45);
 	}
 
 	.ar-footer {
@@ -975,10 +1245,10 @@
 		display: block;
 		width: 100%;
 		text-align: center;
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
-		padding: 8px 12px;
-		border-radius: 10px;
+		padding: 8px 11px;
+		border-radius: 12px;
 		text-decoration: none;
 		transition:
 			background 0.15s ease,
@@ -991,10 +1261,23 @@
 	.ar-btn-primary {
 		background: var(--ar-accent);
 		color: #fff;
+		border-color: rgba(15, 23, 42, 0.25);
 	}
 
 	.ar-btn-primary:hover {
 		filter: brightness(1.06);
+	}
+
+	:global(.dark) .ar-btn-primary,
+	:global(html.dark) .ar-btn-primary {
+		background: linear-gradient(90deg, #22d3ee, #06b6d4);
+		color: #082f49;
+		border-color: rgba(34, 211, 238, 0.5);
+	}
+
+	:global(.dark) .ar-btn-primary:hover,
+	:global(html.dark) .ar-btn-primary:hover {
+		filter: brightness(1.04);
 	}
 
 	.ar-btn-stop {
@@ -1015,11 +1298,11 @@
 
 	.ar-btn-secondary:hover {
 		color: var(--ar-text);
-		background: rgba(255, 255, 255, 0.04);
+		background: rgba(15, 23, 42, 0.04);
 	}
 
-	:global(.light) .ar-btn-secondary:hover,
-	:global(html:not(.dark)) .ar-btn-secondary:hover {
-		background: rgba(15, 23, 42, 0.04);
+	:global(.dark) .ar-btn-secondary:hover,
+	:global(html.dark) .ar-btn-secondary:hover {
+		background: rgba(255, 255, 255, 0.06);
 	}
 </style>
