@@ -58,7 +58,8 @@ export type ScanSession = {
 	errorMessage: string | null;
 	/** Set from chat (Run ID) or agent `run_start` SSE — used to reconnect the event stream */
 	agentRunId: string | null;
-	specialist: string | null; // Populated for specialist runs (for example, "auth"). Null for full pentest runs.
+	/** Populated for specialist runs — the specialist key (e.g. "auth", "recon"). Null for full runs. */
+	specialist: string | null;
 };
 
 type ScanSessionMap = Record<string, ScanSession>;
@@ -961,7 +962,12 @@ export const applyAgentEvent = (
 
 	if (eventType === 'run_start') {
 		const target = (event.target as string) ?? '';
+<<<<<<< HEAD
 		const rid = typeof event.run_id === 'string' ? event.run_id : undefined;
+=======
+		const rid =
+			typeof event.run_id === 'string' ? event.run_id : undefined;
+>>>>>>> d4c5b434c (feat(ui): specialist slash commands, run card, and approval guard)
 		const specialistKey = typeof event.specialist === 'string' ? event.specialist : null;
 		setSession(targetId, (session) => {
 			const stageId: ScanStageId = 'asset_validation';

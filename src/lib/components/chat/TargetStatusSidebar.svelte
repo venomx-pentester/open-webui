@@ -69,6 +69,9 @@
 	$: recentActivity = session ? [...session.activity].reverse().slice(0, 24) : [];
 
 	$: shortSessionRef = session?.id ? `${session.id.slice(0, 8)}…` : '';
+	$: specialistLabel = session?.specialist
+		? `${session.specialist.charAt(0).toUpperCase()}${session.specialist.slice(1)} Specialist`
+		: null;
 
 	$: {
 		if (elapsedInterval) {
@@ -208,7 +211,11 @@
 			</div>
 			<div class="ar-meta">
 				{#if session}
-					Phase {session.phase || 1}{session.phase === 2 ? ' — Exploitation' : ' — Reconnaissance'}
+					{#if specialistLabel}
+						{specialistLabel}
+					{:else}
+						Phase {session.phase || 1}{session.phase === 2 ? ' — Exploitation' : ' — Reconnaissance'}
+					{/if}
 				{:else}
 					{$i18n.t('No active run')}
 				{/if}
@@ -275,7 +282,11 @@
 									? 'Awaiting Confirm'
 									: 'Running'}
 					</span>
-					<span class="ar-badge ar-badge-phase">Phase {session.phase || 1}</span>
+					{#if !session.specialist}
+						<span class="ar-badge ar-badge-phase">Phase {session.phase || 1}</span>
+					{:else}
+						<span class="ar-badge ar-badge-phase">{specialistLabel}</span>
+					{/if}
 				</div>
 				{#if session.agentRunId}
 					<div class="ar-run-id" title={session.agentRunId}>Run ID · {session.agentRunId}</div>
