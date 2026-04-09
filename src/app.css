@@ -260,6 +260,55 @@ select {
 	display: none;
 }
 
+/* Keep chat conversation scrollbars visible and high-contrast in both themes. */
+#messages-container {
+	scrollbar-width: auto;
+	scrollbar-color: rgba(71, 85, 105, 0.72) rgba(148, 163, 184, 0.2);
+}
+
+#messages-container::-webkit-scrollbar {
+	width: 0.65rem;
+	height: 0.65rem;
+}
+
+#messages-container::-webkit-scrollbar-track {
+	background: rgba(148, 163, 184, 0.18);
+	border-radius: 9999px;
+}
+
+#messages-container::-webkit-scrollbar-thumb {
+	visibility: visible;
+	background-color: rgba(71, 85, 105, 0.72);
+	border: 1px solid rgba(255, 255, 255, 0.85);
+	border-radius: 9999px;
+}
+
+#messages-container:hover::-webkit-scrollbar-thumb {
+	background-color: rgba(51, 65, 85, 0.84);
+}
+
+html.dark #messages-container,
+.dark #messages-container {
+	scrollbar-color: rgba(148, 163, 184, 0.86) rgba(30, 41, 59, 0.5);
+}
+
+html.dark #messages-container::-webkit-scrollbar-track,
+.dark #messages-container::-webkit-scrollbar-track {
+	background: rgba(30, 41, 59, 0.5);
+}
+
+html.dark #messages-container::-webkit-scrollbar-thumb,
+.dark #messages-container::-webkit-scrollbar-thumb {
+	visibility: visible;
+	background-color: rgba(148, 163, 184, 0.86);
+	border-color: rgba(15, 23, 42, 0.9);
+}
+
+html.dark #messages-container:hover::-webkit-scrollbar-thumb,
+.dark #messages-container:hover::-webkit-scrollbar-thumb {
+	background-color: rgba(203, 213, 225, 0.95);
+}
+
 .scrollbar-none::-webkit-scrollbar {
 	display: none; /* for Chrome, Safari and Opera */
 }

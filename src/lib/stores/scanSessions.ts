@@ -26,13 +26,7 @@ export type ScanActivity = {
 	stageId: ScanStageId;
 };
 
-export type DispatchStatus =
-	| 'pending'
-	| 'active'
-	| 'done'
-	| 'awaiting'
-	| 'skipped'
-	| 'error';
+export type DispatchStatus = 'pending' | 'active' | 'done' | 'awaiting' | 'skipped' | 'error';
 
 export type DispatchEntry = {
 	key: string;
@@ -64,6 +58,7 @@ export type ScanSession = {
 	errorMessage: string | null;
 	/** Set from chat (Run ID) or agent `run_start` SSE — used to reconnect the event stream */
 	agentRunId: string | null;
+	specialist: string | null; // Populated for specialist runs (for example, "auth"). Null for full pentest runs.
 };
 
 type ScanSessionMap = Record<string, ScanSession>;
@@ -359,7 +354,8 @@ export const startMockScanSession = (target: Target) => {
 			reviewed: false,
 			errorSpecialist: null,
 			errorMessage: null,
-			agentRunId: null
+			agentRunId: null,
+			specialist: null
 		}
 	}));
 
@@ -632,7 +628,8 @@ export const startScanSession = (target: Target) => {
 			reviewed: false,
 			errorSpecialist: null,
 			errorMessage: null,
-			agentRunId: null
+			agentRunId: null,
+			specialist: null
 		}
 	}));
 };
@@ -670,6 +667,7 @@ export const applyScanSessionStatusEvent = (
 		const timestamp = now();
 		const elapsedSeconds = Math.max(0, (timestamp - session.startedAt) / 1000);
 		const band = STAGE_PROGRESS_BANDS[stageId] ?? STAGE_PROGRESS_BANDS.asset_validation;
+		const cap = phaseProgressCap(session);
 		const lifecycle: ScanLifecycle = status.error
 			? 'error'
 			: session.lifecycle === 'paused'
@@ -686,13 +684,14 @@ export const applyScanSessionStatusEvent = (
 					? Math.min(STATUS_PROGRESS_CAP, Math.max(baseline, band.max - 1))
 					: Math.min(inFlightCeiling, Math.max(baseline, band.min + drift))
 		);
+		const boundedProgress = status.error ? progress : Math.min(cap, progress);
 
 		const nextSession = appendActivity(
 			{
 				...session,
 				lifecycle,
 				currentStageId: stageId,
-				progress,
+				progress: Math.max(session.progress, boundedProgress),
 				updatedAt: timestamp,
 				stages: deriveStagesForLiveSession(session, stageId, {
 					lifecycle,
@@ -724,13 +723,15 @@ export const applyScanSessionDelta = (targetId: string, contentLength: number) =
 		const length = Math.max(0, contentLength);
 		const band = STAGE_PROGRESS_BANDS.findings_assembly;
 		const maxBandProgress = Math.min(STREAM_PROGRESS_CAP, band.max - 1);
+		const cap = phaseProgressCap(session);
 		const estimatedTokens = length / 4;
 		const streamFraction = 1 - Math.exp(-estimatedTokens / 260);
 		const timeFraction = Math.min(1, elapsedSeconds / 60);
 		const blendedFraction = Math.max(streamFraction, timeFraction * 0.45);
 
 		const streamProgress = band.min + (maxBandProgress - band.min) * blendedFraction;
-		const progress = Math.max(session.progress, toIntProgress(streamProgress));
+		const boundedStreamProgress = Math.min(cap, toIntProgress(streamProgress));
+		const progress = Math.max(session.progress, boundedStreamProgress);
 		const prevBucket = Math.floor(session.progress / 10);
 		const nextBucket = Math.floor(progress / 10);
 
@@ -883,14 +884,69 @@ const stageForSpecialist = (specialist: string): ScanStageId => {
 	return 'asset_validation';
 };
 
+const isTerminalDispatchStatus = (status: DispatchStatus): boolean =>
+	status === 'done' || status === 'error' || status === 'skipped';
+
+const phaseProgressCap = (session: ScanSession): number => {
+	if (session.lifecycle === 'complete') {
+		return 100;
+	}
+
+	if (session.phase >= 2) {
+		return 95;
+	}
+
+	return 55;
+};
+
+const dispatchStatusContribution = (status: DispatchStatus): number => {
+	if (isTerminalDispatchStatus(status)) {
+		return 1;
+	}
+
+	if (status === 'active') {
+		return 0.62;
+	}
+
+	if (status === 'pending') {
+		return 0.26;
+	}
+
+	if (status === 'awaiting') {
+		return 0.14;
+	}
+
+	return 0;
+};
+
 const dispatchProgress = (session: ScanSession): number => {
-	const total = session.dispatches.length;
-	if (total === 0) return session.progress;
-	const done = session.dispatches.filter(
-		(d) => d.status === 'done' || d.status === 'error'
-	).length;
-	const fraction = done / total;
-	return Math.min(95, Math.max(session.progress, Math.floor(5 + fraction * 90)));
+	const phase1Dispatches = session.dispatches.filter((d) => !PHASE2_KEYS.has(d.key));
+	const phase2Dispatches = session.dispatches.filter((d) => PHASE2_KEYS.has(d.key));
+
+	const phase1Total = Math.max(4, phase1Dispatches.length || 0);
+	const phase1Units = phase1Dispatches.reduce(
+		(total, dispatch) => total + dispatchStatusContribution(dispatch.status),
+		0
+	);
+	const phase1Fraction = phase1Total > 0 ? phase1Units / phase1Total : 0;
+
+	const phase1Progress = Math.floor(8 + phase1Fraction * (55 - 8));
+
+	if (session.phase <= 1) {
+		const bounded = Math.max(8, Math.min(phaseProgressCap(session), phase1Progress));
+		return Math.max(session.progress, bounded);
+	}
+
+	const phase2Total = Math.max(3, phase2Dispatches.length || 0);
+	const phase2Units = phase2Dispatches.reduce(
+		(total, dispatch) => total + dispatchStatusContribution(dispatch.status),
+		0
+	);
+	const phase2Fraction = phase2Total > 0 ? phase2Units / phase2Total : 0;
+	const phase2Progress = Math.floor(55 + phase2Fraction * (95 - 55));
+
+	const bounded = Math.max(55, Math.min(phaseProgressCap(session), phase2Progress));
+	return Math.max(session.progress, bounded);
 };
 
 export const applyAgentEvent = (
@@ -905,8 +961,8 @@ export const applyAgentEvent = (
 
 	if (eventType === 'run_start') {
 		const target = (event.target as string) ?? '';
-		const rid =
-			typeof event.run_id === 'string' ? event.run_id : undefined;
+		const rid = typeof event.run_id === 'string' ? event.run_id : undefined;
+		const specialistKey = typeof event.specialist === 'string' ? event.specialist : null;
 		setSession(targetId, (session) => {
 			const stageId: ScanStageId = 'asset_validation';
 			const next = appendActivity(
@@ -922,7 +978,8 @@ export const applyAgentEvent = (
 					reviewed: false,
 					errorSpecialist: null,
 					errorMessage: null,
-					agentRunId: rid ?? session.agentRunId ?? null
+					agentRunId: rid ?? session.agentRunId ?? null,
+					specialist: specialistKey
 				},
 				stageId,
 				`Agent run started for ${target || 'target'}.`
@@ -1061,6 +1118,16 @@ export const applyAgentEvent = (
 	if (eventType === 'phase_complete') {
 		const message = (event.message as string) ?? 'Phase complete.';
 		setSession(targetId, (session) => {
+			const hasPhase2State =
+				session.phase >= 2 ||
+				session.dispatches.some((d) => PHASE2_KEYS.has(d.key) && d.status !== 'awaiting');
+
+			// During stream replay, old phase_complete events can arrive after phase 2 has
+			// already been confirmed. Ignore those stale events so we don't re-prompt.
+			if (hasPhase2State) {
+				return session;
+			}
+
 			const phase2Entries: DispatchEntry[] = ['exploit', 'post', 'report']
 				.filter((k) => !session.dispatches.some((d) => d.key === k))
 				.map((k) => ({
@@ -1076,6 +1143,7 @@ export const applyAgentEvent = (
 					...session,
 					lifecycle: 'paused',
 					dispatches,
+					progress: Math.max(dispatchProgress({ ...session, dispatches, phase: 1 }), 55),
 					reviewed: false,
 					updatedAt: now(),
 					stages: deriveStagesForLiveSession(session, session.currentStageId, {
@@ -1153,7 +1221,7 @@ export const applyAgentEvent = (
 					endedAt: timestamp,
 					updatedAt: timestamp,
 					errorSpecialist: activeDispatch
-						? KEY_TO_LABEL[activeDispatch.key] ?? activeDispatch.key
+						? (KEY_TO_LABEL[activeDispatch.key] ?? activeDispatch.key)
 						: null,
 					errorMessage: errorMsg.slice(0, 200),
 					stages: deriveStagesForLiveSession(session, session.currentStageId, {
@@ -1174,13 +1242,17 @@ export const confirmPhase2 = (targetId: string) => {
 		const dispatches = session.dispatches.map((d) =>
 			d.status === 'awaiting' ? { ...d, status: 'pending' as DispatchStatus } : d
 		);
+		const nextPhaseSession = {
+			...session,
+			dispatches,
+			phase: 2
+		};
 		return appendActivity(
 			{
-				...session,
+				...nextPhaseSession,
 				lifecycle: 'running',
-				phase: 2,
+				progress: dispatchProgress(nextPhaseSession),
 				reviewed: false,
-				dispatches,
 				updatedAt: now(),
 				stages: deriveStagesForLiveSession(session, session.currentStageId, {
 					lifecycle: 'running'
@@ -1238,7 +1310,7 @@ export const restoreScanSessions = (savedSessions: ScanSession[]) => {
 			if (existing && existing.lifecycle !== 'complete' && existing.lifecycle !== 'error') {
 				continue;
 			}
-			next[session.targetId] = { ...session, agentRunId: null };
+			next[session.targetId] = { ...session, specialist: session.specialist ?? null };
 		}
 		return next;
 	});
