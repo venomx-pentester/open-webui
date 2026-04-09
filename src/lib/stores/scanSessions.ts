@@ -1223,3 +1223,23 @@ export const setReviewed = (targetId: string) => {
 		updatedAt: now()
 	}));
 };
+
+/**
+ * Restore persisted scan sessions (e.g. from localStorage) into the in-memory
+ * store. Only imports sessions whose targetId has no live/active entry already,
+ * so reconnects never clobber a running scan.
+ */
+export const restoreScanSessions = (savedSessions: ScanSession[]) => {
+	sessions.update((current) => {
+		const next = { ...current };
+		for (const session of savedSessions) {
+			const existing = next[session.targetId];
+			// Don't overwrite an active session
+			if (existing && existing.lifecycle !== 'complete' && existing.lifecycle !== 'error') {
+				continue;
+			}
+			next[session.targetId] = { ...session, agentRunId: null };
+		}
+		return next;
+	});
+};

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-	import { confirmPhase2, skipExploitation, setReviewed } from '$lib/stores/scanSessions';
+	import { confirmPhase2, skipExploitation, setReviewed, getScanSessionForTarget } from '$lib/stores/scanSessions';
+	import { resumeAgentRun } from '$lib/stores/agentRunnerStream';
 
 	export let targetId: string;
 
@@ -18,8 +19,12 @@
 		}
 	];
 
-	const act = (index: number) => {
+	const act = async (index: number) => {
 		if (index === 0) {
+			const session = getScanSessionForTarget(targetId);
+			if (session?.agentRunId) {
+				await resumeAgentRun(session.agentRunId);
+			}
 			confirmPhase2(targetId);
 			dispatch('close');
 		} else {
@@ -33,7 +38,7 @@
 		dispatch('close');
 	};
 
-	const handleKeydown = (e: KeyboardEvent) => {
+	const handleKeydown = async (e: KeyboardEvent) => {
 		if (e.key === 'ArrowDown') {
 			e.preventDefault();
 			selected = (selected + 1) % options.length;
@@ -42,14 +47,14 @@
 			selected = (selected - 1 + options.length) % options.length;
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
-			act(selected);
+			await act(selected);
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
 			setReviewed(targetId);
 			dispatch('close');
 		} else if (e.key === '1' || e.key === '2') {
 			e.preventDefault();
-			act(parseInt(e.key) - 1);
+			await act(parseInt(e.key) - 1);
 		}
 	};
 

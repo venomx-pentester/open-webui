@@ -56,6 +56,26 @@ async def run_status(run_id: str):
         return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
+@router.post("/run/{run_id}/resume")
+async def resume_run(run_id: str):
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{AGENT_RUNNER_URL}/run/{run_id}/resume",
+                headers=_HEADERS(),
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as exc:
+        return JSONResponse(
+            status_code=exc.response.status_code,
+            content={"detail": exc.response.text},
+        )
+    except Exception as exc:
+        log.warning("[agent_runner] resume_run failed for %s: %s", run_id, exc)
+        return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
 @router.get("/run/{run_id}/stream")
 async def stream_run(run_id: str, request: Request):
     timeout = httpx.Timeout(connect=10.0, read=720.0, write=10.0, pool=10.0)

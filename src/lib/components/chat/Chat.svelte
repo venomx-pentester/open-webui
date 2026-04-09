@@ -111,6 +111,7 @@
 		applyScanSessionDelta,
 		applyScanSessionStatusEvent,
 		completeScanSession,
+		restoreScanSessions,
 		setAgentRunId
 	} from '$lib/stores/scanSessions';
 	import {
@@ -177,6 +178,18 @@
 		showApprovalDialog = true;
 	} else {
 		showApprovalDialog = false;
+	}
+
+	// Persist completed scan sessions to localStorage so they survive page refresh.
+	$: if ($chatId) {
+		const finished = Object.values($scanSessions).filter(
+			(s) => s.lifecycle === 'complete' || s.lifecycle === 'error'
+		);
+		if (finished.length > 0) {
+			try {
+				localStorage.setItem(`venomx:scan:${$chatId}`, JSON.stringify(finished));
+			} catch {}
+		}
 	}
 
 	let selectedModels = [''];
@@ -1378,6 +1391,14 @@
 				if (taskRes) {
 					taskIds = taskRes.task_ids;
 				}
+
+				// Restore any scan sessions that were persisted for this chat
+				try {
+					const saved = localStorage.getItem(`venomx:scan:${chatIdProp}`);
+					if (saved) {
+						restoreScanSessions(JSON.parse(saved));
+					}
+				} catch {}
 
 				await tick();
 

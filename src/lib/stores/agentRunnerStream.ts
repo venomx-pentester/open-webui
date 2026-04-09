@@ -108,6 +108,25 @@ export const disconnectRun = (targetId: string) => {
 export const isConnected = (targetId: string): boolean => connections.has(targetId);
 
 /**
+ * Signal the agent to proceed into Phase 2.
+ * Returns true on success, false if the call failed.
+ */
+export const resumeAgentRun = async (runId: string): Promise<boolean> => {
+	try {
+		const res = await fetch(`${WEBUI_BASE_URL}/api/v1/agent/run/${runId}/resume`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${localStorage.token}`,
+				'Content-Type': 'application/json',
+			},
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
+};
+
+/**
  * Drop the EventSource and open a new one for the same run (SSE replay / catch-up).
  * Requires `agentRunId` on the scan session (from chat Run ID or `run_start`).
  */
