@@ -112,6 +112,7 @@ export const disconnectRun = (targetId: string) => {
 	vxConn('EventSource CLOSE', conn.runId, targetId);
 	conn.eventSource.close();
 	connections.delete(targetId);
+	clearAgentHandshake(targetId);
 
 	if (get(activeRunTargetId) === targetId) {
 		activeRunId.set(null);
