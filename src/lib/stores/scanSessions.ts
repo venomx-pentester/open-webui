@@ -61,6 +61,8 @@ export type ScanSession = {
 	agentRunId: string | null;
 	/** Populated for specialist runs — the specialist key (e.g. "auth", "recon"). Null for full runs. */
 	specialist: string | null;
+	/** True when the run_complete event reports a .docx was generated */
+	hasDocx: boolean;
 };
 
 type ScanSessionMap = Record<string, ScanSession>;
@@ -357,7 +359,8 @@ export const startMockScanSession = (target: Target) => {
 			errorSpecialist: null,
 			errorMessage: null,
 			agentRunId: null,
-			specialist: null
+			specialist: null,
+			hasDocx: false
 		}
 	}));
 
@@ -631,7 +634,8 @@ export const startScanSession = (target: Target) => {
 			errorSpecialist: null,
 			errorMessage: null,
 			agentRunId: null,
-			specialist: null
+			specialist: null,
+			hasDocx: false
 		}
 	}));
 };
@@ -1195,6 +1199,7 @@ export const applyAgentEvent = (
 
 	if (eventType === 'run_complete') {
 		vxStore('run_complete', { targetId });
+		const hasDocx = !!(event as any).has_docx;
 		setSession(targetId, (session) => {
 			const timestamp = now();
 			const dispatches = session.dispatches.map((d) =>
@@ -1209,6 +1214,7 @@ export const applyAgentEvent = (
 					progress: 100,
 					endedAt: timestamp,
 					updatedAt: timestamp,
+					hasDocx,
 					stages: deriveStagesForLiveSession(session, 'complete', { lifecycle: 'complete' })
 				},
 				'complete',

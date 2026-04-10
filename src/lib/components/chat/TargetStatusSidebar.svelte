@@ -313,6 +313,15 @@
 						</div>
 					</div>
 				</div>
+				{#if session.hasDocx && session.agentRunId}
+					<a
+						href="/api/v1/agent/run/{session.agentRunId}/report/download"
+						download="VenomX-Report-{session.agentRunId.slice(0, 8)}.docx"
+						class="ar-download-btn"
+					>
+						↓ Download Report (.docx)
+					</a>
+				{/if}
 			{:else if isPaused}
 				<div class="ar-banner ar-banner-warn">
 					<span class="ar-banner-ic">⏳</span>
@@ -791,6 +800,27 @@
 	.ar-banner-ok {
 		background: rgba(34, 197, 94, 0.1);
 		border: 1px solid rgba(34, 197, 94, 0.22);
+	}
+
+	.ar-download-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.35rem;
+		width: 100%;
+		padding: 0.45rem 0.75rem;
+		font-size: 11px;
+		font-weight: 600;
+		border-radius: 6px;
+		border: 1px solid rgba(34, 197, 94, 0.35);
+		background: rgba(34, 197, 94, 0.08);
+		color: rgb(34, 197, 94);
+		text-decoration: none;
+		transition: background 0.15s, border-color 0.15s;
+	}
+	.ar-download-btn:hover {
+		background: rgba(34, 197, 94, 0.18);
+		border-color: rgba(34, 197, 94, 0.55);
 	}
 
 	.ar-banner-title-ok {
