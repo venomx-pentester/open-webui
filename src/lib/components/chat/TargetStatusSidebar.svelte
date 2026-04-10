@@ -204,7 +204,9 @@
 					{#if specialistLabel}
 						{specialistLabel}
 					{:else}
-						Phase {session.phase || 1}{session.phase === 2 ? ' — Exploitation' : ' — Reconnaissance'}
+						Phase {session.phase || 1}{session.phase === 2
+							? ' — Exploitation'
+							: ' — Reconnaissance'}
 					{/if}
 				{:else}
 					{$i18n.t('No active run')}
@@ -424,24 +426,24 @@
 
 			<!-- Activity -->
 			{#if recentActivity.length > 0}
-			<div class="ar-section-label">
-				{session.specialist ? `${specialistLabel} — Tool Timeline` : 'Live Activity'}
-			</div>
-			<div class="ar-activity-list">
-				{#each recentActivity as item (item.id)}
-					<div class="ar-activity-item {activityBorderClass(item.message)}">
-						<div class="ar-activity-time">
-							{new Date(item.timestamp).toLocaleTimeString('en-US', {
-								hour12: false,
-								hour: '2-digit',
-								minute: '2-digit',
-								second: '2-digit'
-							})}
+				<div class="ar-section-label">
+					{session.specialist ? `${specialistLabel} — Tool Timeline` : 'Live Activity'}
+				</div>
+				<div class="ar-activity-list">
+					{#each recentActivity as item (item.id)}
+						<div class="ar-activity-item {activityBorderClass(item.message)}">
+							<div class="ar-activity-time">
+								{new Date(item.timestamp).toLocaleTimeString('en-US', {
+									hour12: false,
+									hour: '2-digit',
+									minute: '2-digit',
+									second: '2-digit'
+								})}
+							</div>
+							<div class="ar-activity-msg">{item.message}</div>
 						</div>
-						<div class="ar-activity-msg">{item.message}</div>
-					</div>
-				{/each}
-			</div>
+					{/each}
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -463,14 +465,20 @@
 			<button
 				type="button"
 				class="ar-btn ar-btn-primary"
-				on:click={() => { vxAction('Phase2 Confirm (sidebar)', { targetId: resolvedTargetId }); confirmPhase2(resolvedTargetId); }}
+				on:click={() => {
+					vxAction('Phase2 Confirm (sidebar)', { targetId: resolvedTargetId });
+					confirmPhase2(resolvedTargetId);
+				}}
 			>
 				{$i18n.t('Confirm Phase 2')}
 			</button>
 			<button
 				type="button"
 				class="ar-btn ar-btn-stop"
-				on:click={() => { vxAction('Phase2 Skip (sidebar)', { targetId: resolvedTargetId }); skipExploitation(resolvedTargetId); }}
+				on:click={() => {
+					vxAction('Phase2 Skip (sidebar)', { targetId: resolvedTargetId });
+					skipExploitation(resolvedTargetId);
+				}}
 			>
 				{$i18n.t('Skip Exploitation')}
 			</button>
@@ -818,7 +826,9 @@
 		background: rgba(34, 197, 94, 0.08);
 		color: rgb(34, 197, 94);
 		text-decoration: none;
-		transition: background 0.15s, border-color 0.15s;
+		transition:
+			background 0.15s,
+			border-color 0.15s;
 	}
 	.ar-download-btn:hover {
 		background: rgba(34, 197, 94, 0.18);

@@ -968,8 +968,7 @@ export const applyAgentEvent = (
 	if (eventType === 'run_start') {
 		vxStore('run_start', { targetId, run_id: event.run_id, specialist: event.specialist });
 		const target = (event.target as string) ?? '';
-		const rid =
-			typeof event.run_id === 'string' ? event.run_id : undefined;
+		const rid = typeof event.run_id === 'string' ? event.run_id : undefined;
 		const specialistKey = typeof event.specialist === 'string' ? event.specialist : null;
 		setSession(targetId, (session) => {
 			const stageId: ScanStageId = 'asset_validation';
@@ -1066,7 +1065,13 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'tool_result') {
-		vxStore('tool_result', { targetId, specialist: event.specialist, tool: event.tool, success: event.success, ms: event.execution_ms });
+		vxStore('tool_result', {
+			targetId,
+			specialist: event.specialist,
+			tool: event.tool,
+			success: event.success,
+			ms: event.execution_ms
+		});
 		const rawSpecialist = (event.specialist as string) ?? '';
 		const key = resolveSpecialistKey(rawSpecialist);
 		const tool = (event.tool as string) ?? 'unknown';
@@ -1085,7 +1090,13 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'specialist_result') {
-		vxStore('specialist_result', { targetId, specialist: event.specialist, success: event.success, nodes_added: event.nodes_added, creds_added: event.creds_added });
+		vxStore('specialist_result', {
+			targetId,
+			specialist: event.specialist,
+			success: event.success,
+			nodes_added: event.nodes_added,
+			creds_added: event.creds_added
+		});
 		const specialist = (event.specialist as string) ?? 'unknown';
 		const success = event.success as boolean;
 		const nodesAdded = (event.nodes_added as number) ?? 0;

@@ -111,7 +111,6 @@
 	"Advanced Params": "Расширенные параметры",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "После обновления или изменения модели встраивания необходимо пересоздать базу знаний для применения изменений. Вы можете это сделать, используя кнопку \"Пересоздать\" ниже.",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "AI",
 	"All": "Все",
 	"All chats have been unarchived.": "Все чаты были разархивированы.",

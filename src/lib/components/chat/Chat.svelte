@@ -170,11 +170,8 @@
 	let eventConfirmationInputType = '';
 	let eventCallback = null;
 
-	$: agentUiTargetId =
-		$activeRunTargetId ?? $activeQueueTargetId ?? $activeTargetId;
-	$: approvalTargetSession = agentUiTargetId
-		? $scanSessions[agentUiTargetId] ?? null
-		: null;
+	$: agentUiTargetId = $activeRunTargetId ?? $activeQueueTargetId ?? $activeTargetId;
+	$: approvalTargetSession = agentUiTargetId ? ($scanSessions[agentUiTargetId] ?? null) : null;
 	$: if (
 		approvalTargetSession?.lifecycle === 'paused' &&
 		!approvalTargetSession.reviewed &&
@@ -1949,12 +1946,27 @@
 					return;
 				}
 
-				vxAction('/pentest', { target: resolvedTarget, source: inlineTarget ? 'inline' : 'activeTarget' });
+				vxAction('/pentest', {
+					target: resolvedTarget,
+					source: inlineTarget ? 'inline' : 'activeTarget'
+				});
 				userPrompt = `/pentest ${resolvedTarget}`;
 				queueScanForTargetValue(resolvedTarget);
 				handledViaTargetCommand = true;
 			} else if (
-				['osint', 'recon', 'web', 'auth', 'vuln', 'sql', 'smb', 'ad', 'exploit', 'post', 'report'].includes(slashCommand.name)
+				[
+					'osint',
+					'recon',
+					'web',
+					'auth',
+					'vuln',
+					'sql',
+					'smb',
+					'ad',
+					'exploit',
+					'post',
+					'report'
+				].includes(slashCommand.name)
 			) {
 				// First word of args is the target IP; rest are modifiers (scope:, hints:)
 				const firstArg = (slashCommand.args ?? '').trim().split(/\s+/)[0] ?? '';
@@ -1963,12 +1975,17 @@
 
 				if (!resolvedTarget) {
 					toast.error(
-						$i18n.t(`Choose a target first or pass one explicitly, e.g. /${slashCommand.name} 10.16.101.105`)
+						$i18n.t(
+							`Choose a target first or pass one explicitly, e.g. /${slashCommand.name} 10.16.101.105`
+						)
 					);
 					return;
 				}
 
-				vxAction(`/${slashCommand.name}`, { target: resolvedTarget, source: firstArg ? 'inline' : 'activeTarget' });
+				vxAction(`/${slashCommand.name}`, {
+					target: resolvedTarget,
+					source: firstArg ? 'inline' : 'activeTarget'
+				});
 				// If target came from fallback (not typed inline), inject it into the message
 				if (!firstArg && fallbackTarget) {
 					userPrompt = `/${slashCommand.name} ${fallbackTarget}`;

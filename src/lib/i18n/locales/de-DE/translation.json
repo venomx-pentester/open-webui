@@ -109,7 +109,6 @@
 	"Advanced Params": "Erweiterte Parameter",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "Nach Aktualisierung oder Änderung des Embedding-Modells müssen Sie den Wissensspeicher neu indizieren, damit die Änderungen wirksam werden. Nutzen Sie dazu die Schaltfläche \"Neu indizieren\".",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "KI",
 	"All": "Alle",
 	"All chats have been unarchived.": "Alle Chats wurden aus dem Archiv wiederhergestellt.",

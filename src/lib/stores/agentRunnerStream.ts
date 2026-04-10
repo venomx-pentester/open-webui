@@ -92,7 +92,11 @@ export const connectToRun = (targetId: string, runId: string) => {
 
 	es.onerror = () => {
 		const current = connections.get(targetId);
-		if (current && current.runId === runId && current.eventSource.readyState === EventSource.CLOSED) {
+		if (
+			current &&
+			current.runId === runId &&
+			current.eventSource.readyState === EventSource.CLOSED
+		) {
 			vxError('EventSource CLOSED (error)', { runId, targetId });
 			disconnectRun(targetId);
 		}

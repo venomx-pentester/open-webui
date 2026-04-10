@@ -110,7 +110,6 @@
 	"Advanced Params": "Paràmetres avançats",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "Després d'actualitzar o canviar el model d'incrustació, has de tornar a indexar la base de coneixement perquè els canvis tinguin efecte. Pots fer-ho mitjançant el botó \"Reindexar\" que hi ha a continuació.",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "IA",
 	"All": "Tots",
 	"All chats have been unarchived.": "Tots els xats han estat desarxivats.",

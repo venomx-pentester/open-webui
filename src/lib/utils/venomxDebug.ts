@@ -15,11 +15,11 @@
 const P = '[VenomX]';
 
 const FMT = {
-	sse:    'color:#38bdf8;font-weight:bold',  // cyan   — raw SSE payloads
-	store:  'color:#a78bfa;font-weight:bold',  // purple — scanSessions mutations
-	ui:     'color:#fb923c;font-weight:bold',  // orange — button / slash-command actions
-	conn:   'color:#4ade80;font-weight:bold',  // green  — EventSource lifecycle
-	warn:   'color:#facc15;font-weight:bold',  // yellow — unexpected but non-fatal
+	sse: 'color:#38bdf8;font-weight:bold', // cyan   — raw SSE payloads
+	store: 'color:#a78bfa;font-weight:bold', // purple — scanSessions mutations
+	ui: 'color:#fb923c;font-weight:bold', // orange — button / slash-command actions
+	conn: 'color:#4ade80;font-weight:bold', // green  — EventSource lifecycle
+	warn: 'color:#facc15;font-weight:bold' // yellow — unexpected but non-fatal
 };
 
 // ─── Generic helpers ──────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export const vxGroup = (
 	category: keyof typeof FMT,
 	label: string,
 	fn: () => void,
-	collapsed = true,
+	collapsed = true
 ) => {
 	const method = collapsed ? console.groupCollapsed : console.group;
 	method(`%c${P} ${label}`, FMT[category]);
@@ -79,7 +79,7 @@ export const vxAction = (label: string, context?: Record<string, unknown>) => {
 export const vxConn = (label: string, runId?: string | null, targetId?: string) => {
 	const parts = [label];
 	if (targetId) parts.push(`target:${targetId.slice(0, 8)}`);
-	if (runId)    parts.push(`run:${runId.slice(0, 8)}`);
+	if (runId) parts.push(`run:${runId.slice(0, 8)}`);
 	vxLog('conn', parts.join('  '));
 };
 
