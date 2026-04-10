@@ -108,7 +108,6 @@
 	"Advanced Params": "高级参数",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "更新或更改嵌入模型后，请重新索引知识库以应用更改。只需点击下方的“重新索引”按钮即可。",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "AI",
 	"All": "全部",
 	"All chats have been unarchived.": "已成功取消全部对话的归档状态。",

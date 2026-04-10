@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 
 import httpx
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 log = logging.getLogger(__name__)
 
@@ -78,11 +78,36 @@ async def resume_run(run_id: str):
         return JSONResponse(status_code=502, content={'detail': str(exc)})
 
 
+@router.get('/run/{run_id}/report/download')
+async def download_report(run_id: str):
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f'{AGENT_RUNNER_URL}/run/{run_id}/report/download',
+                headers=_headers(),
+            )
+            resp.raise_for_status()
+            short_id = run_id[:8]
+            return Response(
+                content=resp.content,
+                media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                headers={'Content-Disposition': f'attachment; filename="VenomX-Report-{short_id}.docx"'},
+            )
+    except httpx.HTTPStatusError as exc:
+        return JSONResponse(
+            status_code=exc.response.status_code,
+            content={'detail': exc.response.text},
+        )
+    except Exception as exc:
+        log.warning('[agent_runner] download_report failed for %s: %s', run_id, exc)
+        return JSONResponse(status_code=502, content={'detail': str(exc)})
+
+
 @router.get('/run/{run_id}/stream')
 async def stream_run(run_id: str, request: Request):
     timeout = httpx.Timeout(connect=10.0, read=720.0, write=10.0, pool=10.0)
 
-    async def event_proxy() -> AsyncGenerator[str, None]:
+    async def event_proxy() -> AsyncGenerator[bytes, None]:
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 async with client.stream(
@@ -90,13 +115,13 @@ async def stream_run(run_id: str, request: Request):
                     f'{AGENT_RUNNER_URL}/run/{run_id}/stream',
                     headers=_headers(),
                 ) as upstream:
-                    async for line in upstream.aiter_lines():
+                    async for chunk in upstream.aiter_bytes():
                         if await request.is_disconnected():
                             break
-                        yield line + '\n'
+                        yield chunk
         except Exception as exc:
             log.warning('[agent_runner] stream proxy error for %s: %s', run_id, exc)
-            yield f'data: {{"type":"proxy_error","error":"{exc}"}}\n\n'
+            yield f'data: {{"type":"proxy_error","error":"{exc}"}}\n\n'.encode()
 
     return StreamingResponse(
         event_proxy(),

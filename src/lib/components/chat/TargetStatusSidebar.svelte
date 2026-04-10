@@ -10,13 +10,8 @@
 		skipExploitation,
 		type DispatchEntry
 	} from '$lib/stores/scanSessions';
-	import {
-		activeRunTargetId,
-		clearAgentHandshake,
-		disconnectRun,
-		isConnected,
-		reconnectAgentStream
-	} from '$lib/stores/agentRunnerStream';
+	import { activeRunTargetId, reconnectAgentStream } from '$lib/stores/agentRunnerStream';
+	import { vxAction } from '$lib/utils/venomxDebug';
 	import { activeQueueTargetId, activeTargetId } from '$lib/stores/targets';
 
 	const i18n = getContext<any>('i18n');
@@ -69,6 +64,9 @@
 	$: recentActivity = session ? [...session.activity].reverse().slice(0, 24) : [];
 
 	$: shortSessionRef = session?.id ? `${session.id.slice(0, 8)}…` : '';
+	$: specialistLabel = session?.specialist
+		? `${session.specialist.charAt(0).toUpperCase()}${session.specialist.slice(1)} Specialist`
+		: null;
 
 	$: {
 		if (elapsedInterval) {
@@ -114,12 +112,7 @@
 
 	const handleReconnectStream = () => {
 		if (!resolvedTargetId) return;
-
-		if (isConnected(resolvedTargetId)) {
-			toast.success($i18n.t('Agent stream is already attached.'));
-			return;
-		}
-
+		vxAction('Reconnect agent stream', { targetId: resolvedTargetId });
 		const ok = reconnectAgentStream(resolvedTargetId);
 		if (ok) {
 			toast.success($i18n.t('Reconnecting to agent stream…'));
@@ -208,7 +201,13 @@
 			</div>
 			<div class="ar-meta">
 				{#if session}
-					Phase {session.phase || 1}{session.phase === 2 ? ' — Exploitation' : ' — Reconnaissance'}
+					{#if specialistLabel}
+						{specialistLabel}
+					{:else}
+						Phase {session.phase || 1}{session.phase === 2
+							? ' — Exploitation'
+							: ' — Reconnaissance'}
+					{/if}
 				{:else}
 					{$i18n.t('No active run')}
 				{/if}
@@ -275,7 +274,11 @@
 									? 'Awaiting Confirm'
 									: 'Running'}
 					</span>
-					<span class="ar-badge ar-badge-phase">Phase {session.phase || 1}</span>
+					{#if !session.specialist}
+						<span class="ar-badge ar-badge-phase">Phase {session.phase || 1}</span>
+					{:else}
+						<span class="ar-badge ar-badge-phase">{specialistLabel}</span>
+					{/if}
 				</div>
 				{#if session.agentRunId}
 					<div class="ar-run-id" title={session.agentRunId}>Run ID · {session.agentRunId}</div>
@@ -304,7 +307,9 @@
 					<div>
 						<div class="ar-banner-title ar-banner-title-ok">Run finished</div>
 						<div class="ar-banner-sub">
-							{#if session.phase === 1}
+							{#if session.specialist}
+								{specialistLabel} completed in {elapsedDisplay}
+							{:else if session.phase === 1}
 								{doneCount} specialists completed — exploitation skipped
 							{:else}
 								{totalCount} specialists completed in {elapsedDisplay}
@@ -312,6 +317,15 @@
 						</div>
 					</div>
 				</div>
+				{#if session.hasDocx && session.agentRunId}
+					<a
+						href="/api/v1/agent/run/{session.agentRunId}/report/download"
+						download="VenomX-Report-{session.agentRunId.slice(0, 8)}.docx"
+						class="ar-download-btn"
+					>
+						↓ Download Report (.docx)
+					</a>
+				{/if}
 			{:else if isPaused}
 				<div class="ar-banner ar-banner-warn">
 					<span class="ar-banner-ic">⏳</span>
@@ -365,8 +379,8 @@
 				</div>
 			</div>
 
-			<!-- Dispatch pipeline -->
-			{#if session.dispatches.length > 0}
+			<!-- Dispatch pipeline — full pentest only, not specialist runs -->
+			{#if !session.specialist && session.dispatches.length > 0}
 				<div class="ar-section-label">Dispatch Pipeline</div>
 				<div class="ar-dispatch-list">
 					{#each session.dispatches as dispatch (dispatch.key)}
@@ -402,7 +416,7 @@
 						</div>
 					{/each}
 				</div>
-			{:else}
+			{:else if !session.specialist}
 				<div class="ar-section-label">Dispatch Pipeline</div>
 				<div class="ar-dispatch-empty">
 					No specialist rows yet. They appear when the agent-runner emits
@@ -412,23 +426,23 @@
 
 			<!-- Activity -->
 			{#if recentActivity.length > 0}
-				<div class="ar-activity-section">
-					<div class="ar-section-label">Live Activity</div>
-					<div class="ar-activity-list">
-						{#each recentActivity as item (item.id)}
-							<div class="ar-activity-item {activityToneClass(item)}">
-								<div class="ar-activity-time">
-									{new Date(item.timestamp).toLocaleTimeString('en-US', {
-										hour12: false,
-										hour: '2-digit',
-										minute: '2-digit',
-										second: '2-digit'
-									})}
-								</div>
-								<div class="ar-activity-msg">{item.message}</div>
+				<div class="ar-section-label">
+					{session.specialist ? `${specialistLabel} — Tool Timeline` : 'Live Activity'}
+				</div>
+				<div class="ar-activity-list">
+					{#each recentActivity as item (item.id)}
+						<div class="ar-activity-item {activityBorderClass(item.message)}">
+							<div class="ar-activity-time">
+								{new Date(item.timestamp).toLocaleTimeString('en-US', {
+									hour12: false,
+									hour: '2-digit',
+									minute: '2-digit',
+									second: '2-digit'
+								})}
 							</div>
-						{/each}
-					</div>
+							<div class="ar-activity-msg">{item.message}</div>
+						</div>
+					{/each}
 				</div>
 			{/if}
 		</div>
@@ -447,18 +461,24 @@
 			</button>
 		{/if}
 
-		{#if isPaused && session?.reviewed && resolvedTargetId}
+		{#if isPaused && !session?.specialist && session?.reviewed && resolvedTargetId}
 			<button
 				type="button"
 				class="ar-btn ar-btn-primary"
-				on:click={() => confirmPhase2(resolvedTargetId)}
+				on:click={() => {
+					vxAction('Phase2 Confirm (sidebar)', { targetId: resolvedTargetId });
+					confirmPhase2(resolvedTargetId);
+				}}
 			>
 				{$i18n.t('Confirm Phase 2')}
 			</button>
 			<button
 				type="button"
 				class="ar-btn ar-btn-stop"
-				on:click={() => skipExploitation(resolvedTargetId)}
+				on:click={() => {
+					vxAction('Phase2 Skip (sidebar)', { targetId: resolvedTargetId });
+					skipExploitation(resolvedTargetId);
+				}}
 			>
 				{$i18n.t('Skip Exploitation')}
 			</button>
@@ -790,6 +810,29 @@
 	.ar-banner-ok {
 		background: rgba(34, 197, 94, 0.1);
 		border: 1px solid rgba(34, 197, 94, 0.22);
+	}
+
+	.ar-download-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.35rem;
+		width: 100%;
+		padding: 0.45rem 0.75rem;
+		font-size: 11px;
+		font-weight: 600;
+		border-radius: 6px;
+		border: 1px solid rgba(34, 197, 94, 0.35);
+		background: rgba(34, 197, 94, 0.08);
+		color: rgb(34, 197, 94);
+		text-decoration: none;
+		transition:
+			background 0.15s,
+			border-color 0.15s;
+	}
+	.ar-download-btn:hover {
+		background: rgba(34, 197, 94, 0.18);
+		border-color: rgba(34, 197, 94, 0.55);
 	}
 
 	.ar-banner-title-ok {

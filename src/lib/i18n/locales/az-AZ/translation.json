@@ -109,7 +109,6 @@
 	"Advanced Params": "Təkmil parametrlər",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "Yerləşdirmə (embedding) modelini yenilədikdən və ya dəyişdirdikdən sonra dəyişikliklərin qüvvəyə minməsi üçün bilik bazasını yenidən indeksləşdirməlisiniz. Bunu aşağıdakı \"Yenidən indekslə\" düyməsi ilə edə bilərsiniz.",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "Süni İntellekt (Sİ)",
 	"All": "Hamısı",
 	"All chats have been unarchived.": "Bütün çatlar arxivdən çıxarıldı.",

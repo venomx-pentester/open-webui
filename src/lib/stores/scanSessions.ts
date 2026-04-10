@@ -1,6 +1,7 @@
 import { derived, get, writable } from 'svelte/store';
 
 import type { Target } from '$lib/components/workspace/Targets/types';
+import { vxStore } from '$lib/utils/venomxDebug';
 
 export type ScanStageStatus = 'pending' | 'in_progress' | 'complete' | 'error';
 export type ScanLifecycle = 'queued' | 'running' | 'paused' | 'complete' | 'error';
@@ -58,7 +59,10 @@ export type ScanSession = {
 	errorMessage: string | null;
 	/** Set from chat (Run ID) or agent `run_start` SSE — used to reconnect the event stream */
 	agentRunId: string | null;
-	specialist: string | null; // Populated for specialist runs (for example, "auth"). Null for full pentest runs.
+	/** Populated for specialist runs — the specialist key (e.g. "auth", "recon"). Null for full runs. */
+	specialist: string | null;
+	/** True when the run_complete event reports a .docx was generated */
+	hasDocx: boolean;
 };
 
 type ScanSessionMap = Record<string, ScanSession>;
@@ -355,7 +359,8 @@ export const startMockScanSession = (target: Target) => {
 			errorSpecialist: null,
 			errorMessage: null,
 			agentRunId: null,
-			specialist: null
+			specialist: null,
+			hasDocx: false
 		}
 	}));
 
@@ -629,7 +634,8 @@ export const startScanSession = (target: Target) => {
 			errorSpecialist: null,
 			errorMessage: null,
 			agentRunId: null,
-			specialist: null
+			specialist: null,
+			hasDocx: false
 		}
 	}));
 };
@@ -960,6 +966,7 @@ export const applyAgentEvent = (
 	const eventType = event.type;
 
 	if (eventType === 'run_start') {
+		vxStore('run_start', { targetId, run_id: event.run_id, specialist: event.specialist });
 		const target = (event.target as string) ?? '';
 		const rid = typeof event.run_id === 'string' ? event.run_id : undefined;
 		const specialistKey = typeof event.specialist === 'string' ? event.specialist : null;
@@ -990,6 +997,7 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'dispatch') {
+		vxStore('dispatch', { targetId, specialist: event.specialist, objective: event.objective });
 		const specialist = (event.specialist as string) ?? 'unknown';
 		const objective = (event.objective as string) ?? '';
 		const stageId = stageForSpecialist(specialist);
@@ -1033,6 +1041,7 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'tool_start') {
+		vxStore('tool_start', { targetId, specialist: event.specialist, tool: event.tool });
 		const rawSpecialist = (event.specialist as string) ?? '';
 		const key = resolveSpecialistKey(rawSpecialist);
 		const tool = (event.tool as string) ?? 'unknown';
@@ -1056,6 +1065,13 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'tool_result') {
+		vxStore('tool_result', {
+			targetId,
+			specialist: event.specialist,
+			tool: event.tool,
+			success: event.success,
+			ms: event.execution_ms
+		});
 		const rawSpecialist = (event.specialist as string) ?? '';
 		const key = resolveSpecialistKey(rawSpecialist);
 		const tool = (event.tool as string) ?? 'unknown';
@@ -1074,6 +1090,13 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'specialist_result') {
+		vxStore('specialist_result', {
+			targetId,
+			specialist: event.specialist,
+			success: event.success,
+			nodes_added: event.nodes_added,
+			creds_added: event.creds_added
+		});
 		const specialist = (event.specialist as string) ?? 'unknown';
 		const success = event.success as boolean;
 		const nodesAdded = (event.nodes_added as number) ?? 0;
@@ -1116,6 +1139,7 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'phase_complete') {
+		vxStore('phase_complete', { targetId, message: event.message });
 		const message = (event.message as string) ?? 'Phase complete.';
 		setSession(targetId, (session) => {
 			const hasPhase2State =
@@ -1181,6 +1205,8 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'run_complete') {
+		vxStore('run_complete', { targetId });
+		const hasDocx = !!(event as any).has_docx;
 		setSession(targetId, (session) => {
 			const timestamp = now();
 			const dispatches = session.dispatches.map((d) =>
@@ -1195,6 +1221,7 @@ export const applyAgentEvent = (
 					progress: 100,
 					endedAt: timestamp,
 					updatedAt: timestamp,
+					hasDocx,
 					stages: deriveStagesForLiveSession(session, 'complete', { lifecycle: 'complete' })
 				},
 				'complete',
@@ -1205,6 +1232,7 @@ export const applyAgentEvent = (
 	}
 
 	if (eventType === 'run_error') {
+		vxStore('run_error', { targetId, error: event.error });
 		const errorMsg = (event.error as string) ?? 'Unknown error';
 		setSession(targetId, (session) => {
 			const timestamp = now();
@@ -1238,6 +1266,7 @@ export const applyAgentEvent = (
 };
 
 export const confirmPhase2 = (targetId: string) => {
+	vxStore('confirmPhase2', { targetId });
 	setSession(targetId, (session) => {
 		const dispatches = session.dispatches.map((d) =>
 			d.status === 'awaiting' ? { ...d, status: 'pending' as DispatchStatus } : d
@@ -1265,6 +1294,7 @@ export const confirmPhase2 = (targetId: string) => {
 };
 
 export const skipExploitation = (targetId: string) => {
+	vxStore('skipExploitation', { targetId });
 	setSession(targetId, (session) => {
 		const timestamp = now();
 		const dispatches = session.dispatches.map((d) =>

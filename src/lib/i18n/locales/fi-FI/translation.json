@@ -109,7 +109,6 @@
 	"Advanced Params": "Edistyneet parametrit",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "Upotusmallin päivittämisen, tai vaihtamisen jälkeen sinun tulee indeksoida tietämys uudelleen ottaaksesi muutokset käyttöön. Voit tehdä tämän alla olevasta \"Indeksoi uudelleen\" napista.",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "AI",
 	"All": "Kaikki",
 	"All chats have been unarchived.": "Kaikki keskustelut poistettu arkistosta.",

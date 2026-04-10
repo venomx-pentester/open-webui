@@ -109,7 +109,6 @@
 	"Advanced Params": "Avancerede indstillinger",
 	"After updating or changing the embedding model, you must reindex the knowledge base for the changes to take effect. You can do this using the \"Reindex\" button below.": "Efter opdatering eller ændring af embedding modellen skal du genindeksere vidensbanken for at ændringer tager effekt. Du kan gøre dette ved at benytte \"Genindekser\"-knappen nedenfor.",
 	"Agent Runner": "",
-	"Agent stream is already attached.": "",
 	"AI": "AI",
 	"All": "Alle",
 	"All chats have been unarchived.": "Alle chatte er blevet aktive",

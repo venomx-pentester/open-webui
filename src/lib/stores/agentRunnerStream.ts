@@ -1,6 +1,7 @@
 import { get, writable } from 'svelte/store';
 import { WEBUI_BASE_URL } from '$lib/constants';
 import { applyAgentEvent, getScanSessionForTarget } from '$lib/stores/scanSessions';
+import { vxConn, vxSSE, vxError, vxLog } from '$lib/utils/venomxDebug';
 
 export type AgentEventType =
 	| 'run_start'
@@ -65,6 +66,8 @@ export const connectToRun = (targetId: string, runId: string) => {
 	activeRunId.set(runId);
 	activeRunTargetId.set(targetId);
 
+	vxConn('EventSource OPEN', runId, targetId);
+
 	es.onmessage = (msg) => {
 		if (!msg.data || msg.data === '[DONE]') {
 			return;
@@ -72,6 +75,7 @@ export const connectToRun = (targetId: string, runId: string) => {
 
 		try {
 			const event: AgentEvent = JSON.parse(msg.data);
+			vxSSE(targetId, event);
 			applyAgentEvent(targetId, event);
 
 			if (
@@ -93,6 +97,7 @@ export const connectToRun = (targetId: string, runId: string) => {
 			current.runId === runId &&
 			current.eventSource.readyState === EventSource.CLOSED
 		) {
+			vxError('EventSource CLOSED (error)', { runId, targetId });
 			disconnectRun(targetId);
 		}
 	};
@@ -104,6 +109,7 @@ export const disconnectRun = (targetId: string) => {
 		return;
 	}
 
+	vxConn('EventSource CLOSE', conn.runId, targetId);
 	conn.eventSource.close();
 	connections.delete(targetId);
 
@@ -120,6 +126,7 @@ export const isConnected = (targetId: string): boolean => connections.has(target
  * Returns true on success, false if the call failed.
  */
 export const resumeAgentRun = async (runId: string): Promise<boolean> => {
+	vxLog('ui', `ACTION  resumeAgentRun  run:${runId.slice(0, 8)}`);
 	try {
 		const res = await fetch(`${WEBUI_BASE_URL}/api/v1/agent/run/${runId}/resume`, {
 			method: 'POST',
