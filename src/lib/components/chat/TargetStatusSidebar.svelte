@@ -305,7 +305,9 @@
 					<div>
 						<div class="ar-banner-title ar-banner-title-ok">Run finished</div>
 						<div class="ar-banner-sub">
-							{#if session.phase === 1}
+							{#if session.specialist}
+								{specialistLabel} completed in {elapsedDisplay}
+							{:else if session.phase === 1}
 								{doneCount} specialists completed — exploitation skipped
 							{:else}
 								{totalCount} specialists completed in {elapsedDisplay}
@@ -375,8 +377,8 @@
 				</div>
 			</div>
 
-			<!-- Dispatch pipeline -->
-			{#if session.dispatches.length > 0}
+			<!-- Dispatch pipeline — full pentest only, not specialist runs -->
+			{#if !session.specialist && session.dispatches.length > 0}
 				<div class="ar-section-label">Dispatch Pipeline</div>
 				<div class="ar-dispatch-list">
 					{#each session.dispatches as dispatch (dispatch.key)}
@@ -412,7 +414,7 @@
 						</div>
 					{/each}
 				</div>
-			{:else}
+			{:else if !session.specialist}
 				<div class="ar-section-label">Dispatch Pipeline</div>
 				<div class="ar-dispatch-empty">
 					No specialist rows yet. They appear when the agent-runner emits
@@ -422,24 +424,24 @@
 
 			<!-- Activity -->
 			{#if recentActivity.length > 0}
-				<div class="ar-activity-section">
-					<div class="ar-section-label">Live Activity</div>
-					<div class="ar-activity-list">
-						{#each recentActivity as item (item.id)}
-							<div class="ar-activity-item {activityToneClass(item)}">
-								<div class="ar-activity-time">
-									{new Date(item.timestamp).toLocaleTimeString('en-US', {
-										hour12: false,
-										hour: '2-digit',
-										minute: '2-digit',
-										second: '2-digit'
-									})}
-								</div>
-								<div class="ar-activity-msg">{item.message}</div>
-							</div>
-						{/each}
+			<div class="ar-section-label">
+				{session.specialist ? `${specialistLabel} — Tool Timeline` : 'Live Activity'}
+			</div>
+			<div class="ar-activity-list">
+				{#each recentActivity as item (item.id)}
+					<div class="ar-activity-item {activityBorderClass(item.message)}">
+						<div class="ar-activity-time">
+							{new Date(item.timestamp).toLocaleTimeString('en-US', {
+								hour12: false,
+								hour: '2-digit',
+								minute: '2-digit',
+								second: '2-digit'
+							})}
+						</div>
+						<div class="ar-activity-msg">{item.message}</div>
 					</div>
-				</div>
+				{/each}
+			</div>
 			{/if}
 		</div>
 	{/if}
@@ -457,7 +459,7 @@
 			</button>
 		{/if}
 
-		{#if isPaused && session?.reviewed && resolvedTargetId}
+		{#if isPaused && !session?.specialist && session?.reviewed && resolvedTargetId}
 			<button
 				type="button"
 				class="ar-btn ar-btn-primary"
