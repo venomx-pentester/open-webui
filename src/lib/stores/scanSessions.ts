@@ -968,12 +968,8 @@ export const applyAgentEvent = (
 	if (eventType === 'run_start') {
 		vxStore('run_start', { targetId, run_id: event.run_id, specialist: event.specialist });
 		const target = (event.target as string) ?? '';
-<<<<<<< HEAD
-		const rid = typeof event.run_id === 'string' ? event.run_id : undefined;
-=======
 		const rid =
 			typeof event.run_id === 'string' ? event.run_id : undefined;
->>>>>>> d4c5b434c (feat(ui): specialist slash commands, run card, and approval guard)
 		const specialistKey = typeof event.specialist === 'string' ? event.specialist : null;
 		setSession(targetId, (session) => {
 			const stageId: ScanStageId = 'asset_validation';
