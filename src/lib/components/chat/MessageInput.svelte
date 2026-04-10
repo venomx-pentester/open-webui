@@ -157,7 +157,7 @@
 	let thinkingLevel = 'high';
 	let thinkingLevelFocusIndex = 0;
 	let showModeMenu = false;
-	let activeMode = 'HUMAN_IN_LOOP';
+	let activeMode = 'ASK';
 	let modeFocusIndex = 0;
 
 	const THINKING_LEVELS = ['low', 'medium', 'high'];
@@ -281,13 +281,13 @@
 
 	const normalizeActiveMode = (value: string) => {
 		const normalized = (value ?? '').toString().trim().toUpperCase();
-		return ACTIVE_MODES.includes(normalized) ? normalized : 'HUMAN_IN_LOOP';
+		return ACTIVE_MODES.includes(normalized) ? normalized : 'ASK';
 	};
 
 	$: activeMode = normalizeActiveMode(
 		((params as any)?.active_mode ??
 			($settings?.params as any)?.active_mode ??
-			'HUMAN_IN_LOOP') as string
+			'ASK') as string
 	);
 
 	const setActiveMode = (mode: string) => {
