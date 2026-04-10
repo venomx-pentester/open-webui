@@ -154,7 +154,7 @@
 	let selectedValvesItemId = null;
 	let integrationsMenuCloseOnOutsideClick = true;
 	let showThinkingLevelMenu = false;
-	let thinkingLevel = 'medium';
+	let thinkingLevel = 'high';
 	let thinkingLevelFocusIndex = 0;
 	let showModeMenu = false;
 	let activeMode = 'HUMAN_IN_LOOP';
