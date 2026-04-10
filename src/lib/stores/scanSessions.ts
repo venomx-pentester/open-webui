@@ -971,6 +971,12 @@ export const applyAgentEvent = (
 		const rid = typeof event.run_id === 'string' ? event.run_id : undefined;
 		const specialistKey = typeof event.specialist === 'string' ? event.specialist : null;
 		setSession(targetId, (session) => {
+			// On SSE replay after a reconnect, run_start arrives again even though the run
+			// is already paused (waiting for Phase 2 approval) or complete.  Do not reset
+			// lifecycle/dispatches in those cases — only update the run ID if missing.
+			if (session.lifecycle === 'paused' || session.lifecycle === 'complete') {
+				return { ...session, agentRunId: rid ?? session.agentRunId ?? null };
+			}
 			const stageId: ScanStageId = 'asset_validation';
 			const next = appendActivity(
 				{
