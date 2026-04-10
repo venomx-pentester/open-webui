@@ -10,13 +10,8 @@
 		skipExploitation,
 		type DispatchEntry
 	} from '$lib/stores/scanSessions';
-	import {
-		activeRunTargetId,
-		clearAgentHandshake,
-		disconnectRun,
-		isConnected,
-		reconnectAgentStream
-	} from '$lib/stores/agentRunnerStream';
+	import { activeRunTargetId, reconnectAgentStream } from '$lib/stores/agentRunnerStream';
+	import { vxAction } from '$lib/utils/venomxDebug';
 	import { activeQueueTargetId, activeTargetId } from '$lib/stores/targets';
 
 	const i18n = getContext<any>('i18n');
@@ -117,12 +112,7 @@
 
 	const handleReconnectStream = () => {
 		if (!resolvedTargetId) return;
-
-		if (isConnected(resolvedTargetId)) {
-			toast.success($i18n.t('Agent stream is already attached.'));
-			return;
-		}
-
+		vxAction('Reconnect agent stream', { targetId: resolvedTargetId });
 		const ok = reconnectAgentStream(resolvedTargetId);
 		if (ok) {
 			toast.success($i18n.t('Reconnecting to agent stream…'));
@@ -462,14 +452,14 @@
 			<button
 				type="button"
 				class="ar-btn ar-btn-primary"
-				on:click={() => confirmPhase2(resolvedTargetId)}
+				on:click={() => { vxAction('Phase2 Confirm (sidebar)', { targetId: resolvedTargetId }); confirmPhase2(resolvedTargetId); }}
 			>
 				{$i18n.t('Confirm Phase 2')}
 			</button>
 			<button
 				type="button"
 				class="ar-btn ar-btn-stop"
-				on:click={() => skipExploitation(resolvedTargetId)}
+				on:click={() => { vxAction('Phase2 Skip (sidebar)', { targetId: resolvedTargetId }); skipExploitation(resolvedTargetId); }}
 			>
 				{$i18n.t('Skip Exploitation')}
 			</button>

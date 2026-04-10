@@ -107,6 +107,7 @@
 		isOfficialSlashCommand,
 		parseSlashCommand
 	} from '$lib/components/chat/MessageInput/Commands/slashCommands';
+	import { vxAction } from '$lib/utils/venomxDebug';
 	import {
 		applyScanSessionDelta,
 		applyScanSessionStatusEvent,
@@ -1948,6 +1949,7 @@
 					return;
 				}
 
+				vxAction('/pentest', { target: resolvedTarget, source: inlineTarget ? 'inline' : 'activeTarget' });
 				userPrompt = `/pentest ${resolvedTarget}`;
 				queueScanForTargetValue(resolvedTarget);
 				handledViaTargetCommand = true;
@@ -1966,6 +1968,7 @@
 					return;
 				}
 
+				vxAction(`/${slashCommand.name}`, { target: resolvedTarget, source: firstArg ? 'inline' : 'activeTarget' });
 				// If target came from fallback (not typed inline), inject it into the message
 				if (!firstArg && fallbackTarget) {
 					userPrompt = `/${slashCommand.name} ${fallbackTarget}`;

@@ -7,6 +7,7 @@
 		getScanSessionForTarget
 	} from '$lib/stores/scanSessions';
 	import { resumeAgentRun } from '$lib/stores/agentRunnerStream';
+	import { vxAction } from '$lib/utils/venomxDebug';
 
 	export let targetId: string;
 
@@ -26,6 +27,7 @@
 
 	const act = async (index: number) => {
 		if (index === 0) {
+			vxAction('Phase2 Confirm', { targetId });
 			const session = getScanSessionForTarget(targetId);
 			let resumed = true;
 			if (session?.agentRunId) {
@@ -37,12 +39,14 @@
 			confirmPhase2(targetId);
 			dispatch('close');
 		} else {
+			vxAction('Phase2 Review (dismiss)', { targetId });
 			setReviewed(targetId);
 			dispatch('close');
 		}
 	};
 
 	const skip = () => {
+		vxAction('Phase2 Skip exploitation', { targetId });
 		skipExploitation(targetId);
 		dispatch('close');
 	};
