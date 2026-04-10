@@ -194,6 +194,27 @@
 		}
 	}
 
+	// In-chat report card: shown when the active target's run completes with a .docx
+	let reportCard: { runId: string; targetId: string } | null = null;
+	let _reportCardSeenRunId: string | null = null;
+	$: {
+		const s = agentUiTargetId ? ($scanSessions[agentUiTargetId] ?? null) : null;
+		if (
+			s?.lifecycle === 'complete' &&
+			s.hasDocx &&
+			s.agentRunId &&
+			s.agentRunId !== _reportCardSeenRunId
+		) {
+			_reportCardSeenRunId = s.agentRunId;
+			reportCard = { runId: s.agentRunId, targetId: agentUiTargetId! };
+		} else if (!s || s.lifecycle !== 'complete' || !s.hasDocx) {
+			// Clear the card if we switch to a different target that doesn't have a completed docx
+			if (reportCard && reportCard.targetId !== agentUiTargetId) {
+				reportCard = null;
+			}
+		}
+	}
+
 	let selectedModels = [''];
 	let atSelectedModel: Model | undefined;
 	let selectedModelIds = [];
@@ -3138,6 +3159,30 @@
 											bottomPadding={files.length > 0}
 											{onSelect}
 										/>
+
+										{#if reportCard}
+											<div class="vx-report-card w-full max-w-3xl mx-auto px-4 pb-3">
+												<div class="vx-report-card-inner flex items-center gap-3 px-4 py-3 rounded-xl border border-cyan-300/60 dark:border-cyan-700/50 bg-cyan-50/80 dark:bg-cyan-950/40 shadow-sm">
+													<div class="text-cyan-600 dark:text-cyan-400 text-[20px] leading-none flex-shrink-0">📄</div>
+													<div class="flex-1 min-w-0">
+														<div class="text-[14px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">Pentest report ready</div>
+														<div class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Full findings compiled as a Word document</div>
+													</div>
+													<a
+														href="/api/v1/agent/run/{reportCard.runId}/report/download"
+														download="VenomX-Report-{reportCard.runId.slice(0, 8)}.docx"
+														class="flex-shrink-0 text-[13px] font-medium px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-600 text-white transition-colors"
+													>
+														↓ Download .docx
+													</a>
+													<button
+														class="flex-shrink-0 w-6 h-6 grid place-items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors text-[12px]"
+														on:click={() => { reportCard = null; }}
+														aria-label="Dismiss"
+													>✕</button>
+												</div>
+											</div>
+										{/if}
 									</div>
 								</div>
 
