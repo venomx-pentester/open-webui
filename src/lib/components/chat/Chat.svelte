@@ -788,14 +788,32 @@
 		// VenomX debug console helpers — window.__vx
 		(window as any).__vx = {
 			...(window as any).__vx,
-			/** Force the report download card for the active target.
+			/** Force the report download card for a target session.
 			 *  Usage:
-			 *    __vx.showReport()                          // uses run already on session
-			 *    __vx.showReport('7b17c01b...')             // inject specific run ID
+			 *    __vx.showReport()                          // auto-picks most recent session
+			 *    __vx.showReport('7b17c01b...')             // find session by run ID
 			 */
 			showReport: (runId?: string) => {
-				const tid = agentUiTargetId;
-				if (!tid) { console.warn('[VenomX] No active target — set a target first'); return; }
+				// Prefer the currently active target, then search all sessions
+				let tid: string | null = agentUiTargetId ?? null;
+
+				if (!tid) {
+					const all = Object.entries(get(scanSessions) as Record<string, any>);
+					if (runId) {
+						const match = all.find(([, s]) => s.agentRunId === runId);
+						tid = match?.[0] ?? null;
+					}
+					if (!tid && all.length > 0) {
+						// Fall back to most recently updated session
+						tid = all.sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]?.[0] ?? null;
+					}
+				}
+
+				if (!tid) {
+					console.warn('[VenomX] No session found — run /pentest first');
+					return;
+				}
+
 				forceDocxReady(tid, runId);
 				console.log(`[VenomX] showReport → target:${tid} run:${runId ?? '(from session)'}`);
 			},
