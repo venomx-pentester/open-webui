@@ -788,34 +788,35 @@
 		// VenomX debug console helpers — window.__vx
 		(window as any).__vx = {
 			...(window as any).__vx,
-			/** Force the report download card for a target session.
+			/** Force the in-chat report download card without running a full pentest.
 			 *  Usage:
-			 *    __vx.showReport()                          // auto-picks most recent session
-			 *    __vx.showReport('7b17c01b...')             // find session by run ID
+			 *    __vx.showReport()                   // uses run ID from last active session
+			 *    __vx.showReport('7b17c01b...')       // show card for a specific run ID
 			 */
 			showReport: (runId?: string) => {
-				// Prefer the currently active target, then search all sessions
+				// Resolve run ID: argument → active session → any session in store
+				let rid = runId;
 				let tid: string | null = agentUiTargetId ?? null;
 
-				if (!tid) {
-					const all = Object.entries(get(scanSessions) as Record<string, any>);
-					if (runId) {
-						const match = all.find(([, s]) => s.agentRunId === runId);
-						tid = match?.[0] ?? null;
-					}
-					if (!tid && all.length > 0) {
-						// Fall back to most recently updated session
-						tid = all.sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]?.[0] ?? null;
+				if (!rid || !tid) {
+					const all = Object.entries(get(scanSessions) as Record<string, any>)
+						.sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+					for (const [sessionTid, s] of all) {
+						if (!rid && s.agentRunId) rid = s.agentRunId;
+						if (!tid) tid = sessionTid;
+						if (rid && tid) break;
 					}
 				}
 
-				if (!tid) {
-					console.warn('[VenomX] No session found — run /pentest first');
+				if (!rid) {
+					console.warn('[VenomX] No run ID found — pass one explicitly: __vx.showReport("runId")');
 					return;
 				}
 
-				forceDocxReady(tid, runId);
-				console.log(`[VenomX] showReport → target:${tid} run:${runId ?? '(from session)'}`);
+				// Directly set the component-level reportCard — bypasses store requirement
+				reportCard = { runId: rid, targetId: tid ?? 'debug' };
+				console.log(`%c[VenomX] showReport`, 'color:#fb923c;font-weight:bold',
+					`→ run:${rid.slice(0, 8)} target:${(tid ?? 'debug').slice(0, 12)}`);
 			},
 		};
 
