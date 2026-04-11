@@ -840,6 +840,16 @@
 					return;
 				}
 
+				// Un-dismiss this run so the reactive block doesn't suppress it
+				try {
+					const raw = localStorage.getItem(_reportCardKey());
+					if (raw) {
+						const ids: string[] = JSON.parse(raw);
+						const filtered = ids.filter((id) => id !== rid);
+						localStorage.setItem(_reportCardKey(), JSON.stringify(filtered));
+					}
+				} catch {}
+
 				// Directly set the component-level reportCard — bypasses store requirement
 				reportCard = { runId: rid, targetId: tid ?? 'debug' };
 				console.log(`%c[VenomX] showReport`, 'color:#fb923c;font-weight:bold',
@@ -3222,32 +3232,32 @@
 											bottomPadding={files.length > 0}
 											{onSelect}
 										/>
-
-										{#if reportCard}
-											<div class="vx-report-card w-full max-w-3xl mx-auto px-4 pb-3">
-												<div class="vx-report-card-inner flex items-center gap-3 px-4 py-3 rounded-xl border border-cyan-300/60 dark:border-cyan-700/50 bg-cyan-50/80 dark:bg-cyan-950/40 shadow-sm">
-													<div class="text-cyan-600 dark:text-cyan-400 text-[20px] leading-none flex-shrink-0">📄</div>
-													<div class="flex-1 min-w-0">
-														<div class="text-[14px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">Pentest report ready</div>
-														<div class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Full findings compiled as a Word document</div>
-													</div>
-													<a
-														href="/api/v1/agent/run/{reportCard.runId}/report/download"
-														download="VenomX-Report-{reportCard.runId.slice(0, 8)}.docx"
-														class="flex-shrink-0 text-[13px] font-medium px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-600 text-white transition-colors"
-													>
-														↓ Download .docx
-													</a>
-													<button
-														class="flex-shrink-0 w-6 h-6 grid place-items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors text-[12px]"
-														on:click={() => _dismissReportCard(reportCard!.runId)}
-														aria-label="Dismiss"
-													>✕</button>
-												</div>
-											</div>
-										{/if}
 									</div>
 								</div>
+
+								{#if reportCard}
+									<div class="vx-report-card w-full max-w-3xl mx-auto px-4 pb-2">
+										<div class="vx-report-card-inner flex items-center gap-3 px-4 py-3 rounded-xl border border-cyan-300/60 dark:border-cyan-700/50 bg-cyan-50/80 dark:bg-cyan-950/40 shadow-sm">
+											<div class="text-cyan-600 dark:text-cyan-400 text-[20px] leading-none flex-shrink-0">📄</div>
+											<div class="flex-1 min-w-0">
+												<div class="text-[14px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">Pentest report ready</div>
+												<div class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Full findings compiled as a Word document</div>
+											</div>
+											<a
+												href="/api/v1/agent/run/{reportCard.runId}/report/download"
+												download="VenomX-Report-{reportCard.runId.slice(0, 8)}.docx"
+												class="flex-shrink-0 text-[13px] font-medium px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-600 text-white transition-colors"
+											>
+												↓ Download .docx
+											</a>
+											<button
+												class="flex-shrink-0 w-6 h-6 grid place-items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors text-[12px]"
+												on:click={() => _dismissReportCard(reportCard!.runId)}
+												aria-label="Dismiss"
+											>✕</button>
+										</div>
+									</div>
+								{/if}
 
 								<div class=" pb-2 {dragged ? 'z-0' : 'z-10'}">
 									<MessageInput
