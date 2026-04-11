@@ -113,7 +113,8 @@
 		applyScanSessionStatusEvent,
 		completeScanSession,
 		restoreScanSessions,
-		setAgentRunId
+		setAgentRunId,
+		forceDocxReady
 	} from '$lib/stores/scanSessions';
 	import {
 		clearAgentHandshake,
@@ -783,6 +784,22 @@
 		console.log('mounted');
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('events', chatEventHandler);
+
+		// VenomX debug console helpers — window.__vx
+		(window as any).__vx = {
+			...(window as any).__vx,
+			/** Force the report download card for the active target.
+			 *  Usage:
+			 *    __vx.showReport()                          // uses run already on session
+			 *    __vx.showReport('7b17c01b...')             // inject specific run ID
+			 */
+			showReport: (runId?: string) => {
+				const tid = agentUiTargetId;
+				if (!tid) { console.warn('[VenomX] No active target — set a target first'); return; }
+				forceDocxReady(tid, runId);
+				console.log(`[VenomX] showReport → target:${tid} run:${runId ?? '(from session)'}`);
+			},
+		};
 
 		$audioQueue?.destroy();
 

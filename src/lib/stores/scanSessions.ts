@@ -1333,6 +1333,24 @@ export const setReviewed = (targetId: string) => {
 };
 
 /**
+ * Debug helper: force a session into the "complete with docx" state so the
+ * in-chat download card appears without needing a full pentest run.
+ *
+ * Usage from the browser console:
+ *   window.__vx.showReport('7b17c01b...')
+ *   window.__vx.showReport()   // uses the agentRunId already on the session
+ */
+export const forceDocxReady = (targetId: string, runId?: string) => {
+	setSession(targetId, (session) => ({
+		...session,
+		lifecycle: 'complete',
+		hasDocx: true,
+		agentRunId: runId ?? session.agentRunId,
+		updatedAt: now()
+	}));
+};
+
+/**
  * Restore persisted scan sessions (e.g. from localStorage) into the in-memory
  * store. Only imports sessions whose targetId has no live/active entry already,
  * so reconnects never clobber a running scan.
