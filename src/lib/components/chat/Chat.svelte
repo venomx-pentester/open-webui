@@ -291,9 +291,9 @@
 	};
 	const getCurrentActiveMode = () => {
 		const rawMode =
-			(params as any)?.active_mode ?? ($settings?.params as any)?.active_mode ?? 'HUMAN_IN_LOOP';
+			(params as any)?.active_mode ?? ($settings?.params as any)?.active_mode ?? 'ASK';
 		const normalizedMode = (rawMode ?? '').toString().trim().toUpperCase();
-		return ACTIVE_MODES.includes(normalizedMode) ? normalizedMode : 'HUMAN_IN_LOOP';
+		return ACTIVE_MODES.includes(normalizedMode) ? normalizedMode : 'ASK';
 	};
 
 	$: if (chatIdProp) {
