@@ -195,23 +195,50 @@
 		}
 	}
 
-	// In-chat report card: shown when the active target's run completes with a .docx
+	// In-chat report card — persists across navigation, only dismissed by explicit ✕.
+	// We track dismissed run IDs in localStorage so the card never reappears after dismissal,
+	// even if the user navigates away and returns.
 	let reportCard: { runId: string; targetId: string } | null = null;
-	let _reportCardSeenRunId: string | null = null;
+
+	const _reportCardKey = () => `venomx:report-dismissed:${$chatId ?? 'global'}`;
+
+	const _isDismissed = (runId: string): boolean => {
+		try {
+			const raw = localStorage.getItem(_reportCardKey());
+			return raw ? (JSON.parse(raw) as string[]).includes(runId) : false;
+		} catch {
+			return false;
+		}
+	};
+
+	const _dismissReportCard = (runId: string) => {
+		try {
+			const raw = localStorage.getItem(_reportCardKey());
+			const ids: string[] = raw ? JSON.parse(raw) : [];
+			if (!ids.includes(runId)) {
+				ids.push(runId);
+				localStorage.setItem(_reportCardKey(), JSON.stringify(ids));
+			}
+		} catch {}
+		reportCard = null;
+	};
+
+	// Reactive: find the most recently completed session with a docx across ALL sessions
+	// for this chat, not just the currently active target.  This makes the card survive
+	// target switches and remounts after navigation.
 	$: {
-		const s = agentUiTargetId ? ($scanSessions[agentUiTargetId] ?? null) : null;
-		if (
-			s?.lifecycle === 'complete' &&
-			s.hasDocx &&
-			s.agentRunId &&
-			s.agentRunId !== _reportCardSeenRunId
-		) {
-			_reportCardSeenRunId = s.agentRunId;
-			reportCard = { runId: s.agentRunId, targetId: agentUiTargetId! };
-		} else if (!s || s.lifecycle !== 'complete' || !s.hasDocx) {
-			// Clear the card if we switch to a different target that doesn't have a completed docx
-			if (reportCard && reportCard.targetId !== agentUiTargetId) {
-				reportCard = null;
+		const allSessions = Object.entries($scanSessions);
+		const candidate = allSessions
+			.filter(([, s]) => s.lifecycle === 'complete' && s.hasDocx && s.agentRunId)
+			.sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+
+		if (candidate) {
+			const [tid, s] = candidate;
+			const runId = s.agentRunId!;
+			if (!_isDismissed(runId)) {
+				if (!reportCard || reportCard.runId !== runId) {
+					reportCard = { runId, targetId: tid };
+				}
 			}
 		}
 	}
@@ -3213,7 +3240,7 @@
 													</a>
 													<button
 														class="flex-shrink-0 w-6 h-6 grid place-items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors text-[12px]"
-														on:click={() => { reportCard = null; }}
+														on:click={() => _dismissReportCard(reportCard!.runId)}
 														aria-label="Dismiss"
 													>✕</button>
 												</div>
