@@ -87,6 +87,7 @@ from open_webui.routers import (
     groups,
     files,
     functions,
+    guard,
     memories,
     models,
     knowledge,
@@ -1519,6 +1520,7 @@ app.include_router(groups.router, prefix='/api/v1/groups', tags=['groups'])
 app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
 app.include_router(functions.router, prefix='/api/v1/functions', tags=['functions'])
 app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['evaluations'])
+app.include_router(guard.router, prefix='/api/v1/guard', tags=['guard'])
 if ENABLE_ADMIN_ANALYTICS:
     app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
 app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])

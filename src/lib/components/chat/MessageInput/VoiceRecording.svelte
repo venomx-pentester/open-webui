@@ -406,6 +406,8 @@
 	class="{loading
 		? ' bg-gray-100/50 dark:bg-gray-850/50'
 		: 'bg-indigo-300/10 dark:bg-indigo-500/10 '} rounded-full flex justify-between {className}"
+	role="group"
+	aria-label={$i18n.t('Voice recording')}
 >
 	<div class="flex items-center mr-1">
 		<button
@@ -422,6 +424,8 @@
 				stopRecording();
 				onCancel();
 			}}
+			aria-label={$i18n.t('Cancel recording')}
+			aria-keyshortcuts="Escape"
 		>
 			<XMark className={'size-4'} />
 		</button>
@@ -459,6 +463,7 @@
         
         {loading ? ' text-gray-500  dark:text-gray-400  ' : ' text-indigo-400 '} 
        font-medium flex-1 mx-auto text-center"
+				aria-live="polite"
 			>
 				{formatSeconds(durationSeconds)}
 			</div>
@@ -561,6 +566,8 @@
 					id="confirm-recording-button"
 					type="button"
 					class="p-1.5 bg-indigo-500 text-white dark:bg-indigo-500 dark:text-blue-950 rounded-full"
+					aria-label={$i18n.t('Confirm recording')}
+					aria-keyshortcuts="Control+Shift+L Meta+Shift+L"
 					on:click={async () => {
 						await confirmRecording();
 					}}
@@ -571,6 +578,7 @@
 						viewBox="0 0 24 24"
 						stroke-width="2.5"
 						stroke="currentColor"
+						aria-hidden="true"
 						class="size-4"
 					>
 						<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />

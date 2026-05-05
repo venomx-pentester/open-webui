@@ -1,5 +1,6 @@
 import { get, writable } from 'svelte/store';
 import { WEBUI_BASE_URL } from '$lib/constants';
+import { notifyError } from '$lib/stores/errorNotifications';
 import { applyAgentEvent, getScanSessionForTarget } from '$lib/stores/scanSessions';
 import { vxConn, vxSSE, vxError, vxLog } from '$lib/utils/venomxDebug';
 
@@ -81,7 +82,8 @@ export const connectToRun = (targetId: string, runId: string) => {
 			if (
 				event.type === '__done__' ||
 				event.type === 'run_complete' ||
-				event.type === 'run_error'
+				event.type === 'run_error' ||
+				event.type === 'proxy_error'
 			) {
 				disconnectRun(targetId);
 			}
@@ -98,6 +100,14 @@ export const connectToRun = (targetId: string, runId: string) => {
 			current.eventSource.readyState === EventSource.CLOSED
 		) {
 			vxError('EventSource CLOSED (error)', { runId, targetId });
+			const session = getScanSessionForTarget(targetId);
+			notifyError('The live pentest event stream disconnected before completion.', {
+				title: 'Pentest stream disconnected',
+				source: 'pentest',
+				targetId,
+				targetName: session?.targetName,
+				dedupeKey: `agent-stream-closed:${targetId}:${runId}`
+			});
 			disconnectRun(targetId);
 		}
 	};
@@ -136,8 +146,20 @@ export const resumeAgentRun = async (runId: string): Promise<boolean> => {
 				'Content-Type': 'application/json'
 			}
 		});
+		if (!res.ok) {
+			notifyError('Unable to resume the pentest run.', {
+				title: 'Pentest resume failed',
+				source: 'pentest',
+				dedupeKey: `resume-run:${runId}`
+			});
+		}
 		return res.ok;
-	} catch {
+	} catch (error) {
+		notifyError(error, {
+			title: 'Pentest resume failed',
+			source: 'pentest',
+			dedupeKey: `resume-run:${runId}`
+		});
 		return false;
 	}
 };

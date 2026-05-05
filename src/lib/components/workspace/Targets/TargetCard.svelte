@@ -10,7 +10,7 @@
 </script>
 
 <div
-	class="target-card rounded-2xl border border-slate-200/80 dark:border-slate-800/65 bg-white/86 dark:bg-slate-950/60 p-4 shadow-sm transition hover:shadow-md"
+	class="target-card rounded-lg border border-slate-200/80 dark:border-slate-800/65 bg-white/86 dark:bg-slate-950/60 p-4 shadow-sm transition hover:shadow-md"
 >
 	<div class="flex items-start justify-between gap-2">
 		<div class="min-w-0">
@@ -51,7 +51,8 @@
 
 	<div class="mt-4 flex items-center justify-end gap-2">
 		<button
-			class="text-xs px-3 py-2 rounded-xl bg-slate-100/85 hover:bg-slate-200/85 dark:bg-slate-800/70 dark:hover:bg-slate-700/80 transition font-medium"
+			type="button"
+			class="text-xs px-3 py-2 rounded-lg bg-slate-100/85 hover:bg-slate-200/85 dark:bg-slate-800/70 dark:hover:bg-slate-700/80 transition font-medium"
 			on:click={() => {
 				dispatch('toggle', target.id);
 			}}
@@ -59,7 +60,8 @@
 			{target.status === 'Paused' ? $i18n.t('Resume') : $i18n.t('Pause')}
 		</button>
 		<button
-			class="text-xs px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-medium"
+			type="button"
+			class="text-xs px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-medium"
 			on:click={() => {
 				dispatch('run', target.id);
 			}}
@@ -67,7 +69,8 @@
 			{$i18n.t('Queue Scan')}
 		</button>
 		<button
-			class="text-xs px-3 py-2 rounded-xl bg-rose-50/90 text-rose-700 hover:bg-rose-100/90 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/50 transition font-medium"
+			type="button"
+			class="text-xs px-3 py-2 rounded-lg bg-rose-50/90 text-rose-700 hover:bg-rose-100/90 dark:bg-rose-900/35 dark:text-rose-300 dark:hover:bg-rose-900/50 transition font-medium"
 			on:click={() => {
 				dispatch('delete', target.id);
 			}}

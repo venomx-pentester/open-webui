@@ -5,8 +5,10 @@
 	import Plus from '$lib/components/icons/Plus.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import AddTargetModal from './Targets/AddTargetModal.svelte';
+	import NetworkTopology from './Targets/NetworkTopology.svelte';
 	import ScanProgressPanel from './Targets/ScanProgressPanel.svelte';
 	import TargetCard from './Targets/TargetCard.svelte';
+	import VulnerabilityDashboard from './Targets/VulnerabilityDashboard.svelte';
 	import type { TargetStatus, TargetType } from './Targets/types';
 	import {
 		activeTargetId,
@@ -52,7 +54,7 @@
 </script>
 
 <svelte:head>
-	<title>{$i18n.t('Targets')} • {$WEBUI_NAME}</title>
+	<title>{$i18n.t('Targets')} - {$WEBUI_NAME}</title>
 </svelte:head>
 
 <AddTargetModal
@@ -83,15 +85,14 @@
 				<div
 					class="mt-2 text-sm md:text-[15px] leading-6 text-slate-600 dark:text-slate-300 max-w-3xl"
 				>
-					{$i18n.t(
-						'Manage the assets under assessment. Live scans, queued runs, and target metadata are presented with the same visual language as the rest of the app.'
-					)}
+					{$i18n.t('Manage assets under assessment and monitor active scan progress.')}
 				</div>
 			</div>
 
 			<div class="flex items-center gap-2">
 				<button
-					class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-medium text-sm shadow-sm"
+					type="button"
+					class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-medium text-sm shadow-sm"
 					on:click={() => {
 						showAddTargetModal = true;
 					}}
@@ -108,9 +109,14 @@
 			<ScanProgressPanel targetId={$activeTargetId} title="Scan Progress" />
 		</div>
 
+		<div class="px-3.5 pb-3.5 grid grid-cols-1 2xl:grid-cols-2 gap-3.5">
+			<NetworkTopology targetId={$activeTargetId} />
+			<VulnerabilityDashboard targetId={$activeTargetId} />
+		</div>
+
 		<div class="px-3.5 flex flex-col gap-3.5 pb-3.5">
 			<div
-				class="flex items-center w-full space-x-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/70 bg-white/82 dark:bg-slate-900/55 px-3 py-2.5"
+				class="flex items-center w-full space-x-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/70 bg-white/82 dark:bg-slate-900/55 px-3 py-2.5"
 			>
 				<div class="self-center text-slate-500 dark:text-slate-400">
 					<Search className="size-4" />
@@ -123,6 +129,7 @@
 				/>
 				{#if query}
 					<button
+						type="button"
 						class="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
 						aria-label={$i18n.t('Clear search')}
 						on:click={() => {
@@ -136,11 +143,15 @@
 
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-0.5">
 				<div>
-					<div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+					<label
+						for="target-type-filter"
+						class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
+					>
 						{$i18n.t('Type')}
-					</div>
+					</label>
 					<select
-						class="targets-select w-full text-sm md:text-[15px] outline-hidden rounded-xl px-3 py-2"
+						id="target-type-filter"
+						class="targets-select w-full text-sm md:text-[15px] outline-hidden rounded-lg px-3 py-2"
 						bind:value={typeFilter}
 					>
 						{#each targetTypes as option}
@@ -149,11 +160,15 @@
 					</select>
 				</div>
 				<div>
-					<div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+					<label
+						for="target-status-filter"
+						class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
+					>
 						{$i18n.t('Status')}
-					</div>
+					</label>
 					<select
-						class="targets-select w-full text-sm md:text-[15px] outline-hidden rounded-xl px-3 py-2"
+						id="target-status-filter"
+						class="targets-select w-full text-sm md:text-[15px] outline-hidden rounded-lg px-3 py-2"
 						bind:value={statusFilter}
 					>
 						{#each statusOptions as option}
@@ -187,9 +202,8 @@
 	{:else}
 		<div class="w-full h-full flex flex-col justify-center items-center my-16 mb-24 px-4">
 			<div
-				class="max-w-md text-center rounded-3xl border border-dashed border-slate-200/80 dark:border-slate-800/65 bg-white/60 dark:bg-slate-900/35 px-6 py-8"
+				class="max-w-md text-center rounded-lg border border-dashed border-slate-200/80 dark:border-slate-800/65 bg-white/60 dark:bg-slate-900/35 px-6 py-8"
 			>
-				<div class="text-3xl mb-3">🎯</div>
 				<div class="text-lg font-semibold mb-1.5">{$i18n.t('No targets found')}</div>
 				<div class="text-sm leading-6 text-slate-500 dark:text-slate-400 text-center">
 					{$i18n.t('Try adjusting your search or filter, or add a new target asset.')}
@@ -202,7 +216,7 @@
 <style>
 	.targets-shell {
 		border: 1px solid rgba(148, 163, 184, 0.26);
-		border-radius: 28px;
+		border-radius: 14px;
 		background: rgba(255, 255, 255, 0.84);
 		box-shadow:
 			0 1px 0 0 rgba(255, 255, 255, 0.72) inset,

@@ -89,7 +89,7 @@
 </script>
 
 <div
-	class="scan-panel rounded-2xl border border-slate-200/80 dark:border-slate-800/65 bg-white/82 dark:bg-slate-950/60 backdrop-blur-md shadow-sm p-4"
+	class="scan-panel rounded-lg border border-slate-200/80 dark:border-slate-800/65 bg-white/82 dark:bg-slate-950/60 backdrop-blur-md shadow-sm p-4"
 >
 	<div class="flex items-start justify-between gap-2">
 		<div>
@@ -136,7 +136,7 @@
 
 			<div class="grid grid-cols-2 gap-2 text-xs">
 				<div
-					class="rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/45 p-2.5"
+					class="rounded-lg border border-slate-200/80 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/45 p-2.5"
 				>
 					<div class="text-slate-500 dark:text-slate-400 text-[11px] uppercase tracking-wide">
 						{$i18n.t('Current Stage')}
@@ -146,7 +146,7 @@
 					</div>
 				</div>
 				<div
-					class="rounded-xl border border-slate-200/80 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/45 p-2.5"
+					class="rounded-lg border border-slate-200/80 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/45 p-2.5"
 				>
 					<div class="text-slate-500 dark:text-slate-400 text-[11px] uppercase tracking-wide">
 						{$i18n.t('Elapsed')}
@@ -209,9 +209,9 @@
 		</div>
 	{:else}
 		<div
-			class="mt-3 text-sm text-slate-500 dark:text-slate-400 rounded-xl border border-slate-200/75 dark:border-slate-800/55 bg-white/65 dark:bg-slate-900/35 p-3 leading-6"
+			class="mt-3 text-sm text-slate-500 dark:text-slate-400 rounded-lg border border-slate-200/75 dark:border-slate-800/55 bg-white/65 dark:bg-slate-900/35 p-3 leading-6"
 		>
-			{$i18n.t('Queue a scan from Targets or the sidebar to start a mock scan lifecycle.')}
+			{$i18n.t('Queue a scan from Targets or the sidebar to start scan tracking.')}
 		</div>
 	{/if}
 </div>

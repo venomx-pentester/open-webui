@@ -37,6 +37,12 @@
 		showFileNavDir,
 		pyodideWorker
 	} from '$lib/stores';
+	import {
+		clearErrorNotification,
+		errorNotifications,
+		normalizeErrorMessage,
+		notifyError
+	} from '$lib/stores/errorNotifications';
 	import { getFileContentById } from '$lib/apis/files';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -107,6 +113,10 @@
 	let syncStatsEventData = null;
 
 	let heartbeatInterval = null;
+	/** @type {null | (() => void)} */
+	let unsubscribeErrorNotifications = null;
+	/** @type {Set<string>} */
+	let shownErrorNotificationIds = new Set();
 
 	const BREAKPOINT = 768;
 
@@ -261,6 +271,11 @@
 			if (executing) {
 				executing = false;
 				stderr = 'Execution Time Limit Exceeded';
+				notifyError(stderr, {
+					title: 'Python execution failed',
+					source: 'python',
+					dedupeKey: `python-timeout:${id}`
+				});
 
 				// Terminate and recreate the worker on timeout
 				worker.terminate();
@@ -320,6 +335,11 @@
 
 		const onError = (event) => {
 			console.log('pyodideWorker.onerror', event);
+			notifyError(event?.message ?? 'Python worker failed while executing model-generated code.', {
+				title: 'Python execution failed',
+				source: 'python',
+				dedupeKey: `python-worker:${id}`
+			});
 			clearTimeout(timeoutId);
 			worker.removeEventListener('message', onMessage);
 			worker.removeEventListener('error', onError);
@@ -381,15 +401,37 @@
 		console.log('executeTool', data, toolServer);
 
 		if (toolServer) {
-			const res = await executeToolServer(
-				token,
-				toolServer.url,
-				data?.name,
-				data?.params,
-				toolServerData
-			);
+			/** @type {any} */
+			let res = null;
+			try {
+				res = await executeToolServer(
+					token,
+					toolServer.url,
+					data?.name,
+					data?.params,
+					toolServerData
+				);
+			} catch (error) {
+				notifyError(error, {
+					title: 'Tool execution failed',
+					source: 'tool',
+					dedupeKey: `tool:${data?.server?.url ?? 'unknown'}:${data?.name ?? 'unknown'}`
+				});
+				if (cb) {
+					cb(error);
+				}
+				return;
+			}
 
 			console.log('executeToolServer', res);
+
+			if (res?.error) {
+				notifyError(res.error, {
+					title: 'Tool execution failed',
+					source: 'tool',
+					dedupeKey: `tool-result:${data?.server?.url ?? 'unknown'}:${data?.name ?? 'unknown'}:${res.error}`
+				});
+			}
 
 			if (data?.name === 'display_file' && data?.params?.path) {
 				if (res?.exists !== false) {
@@ -405,10 +447,46 @@
 				cb(structuredClone(res));
 			}
 		} else {
+			notifyError('Tool Server Not Found', {
+				title: 'Tool execution failed',
+				source: 'tool',
+				dedupeKey: `tool-server-missing:${data?.server?.url ?? 'unknown'}`
+			});
 			if (cb) {
 				cb({ error: 'Tool Server Not Found' });
 			}
 		}
+	};
+
+	/** @param {import('$lib/stores/errorNotifications').ErrorNotification} notification */
+	const showErrorNotification = (notification) => {
+		const description = [
+			notification.targetName ? `Target: ${notification.targetName}` : null,
+			notification.source ? `Source: ${notification.source}` : null
+		]
+			.filter(Boolean)
+			.join(' | ');
+
+		toast.error(notification.title, {
+			description: description
+				? `${description}\n${notification.message}`
+				: notification.message,
+			duration: 12000
+		});
+
+		if (
+			$isLastActiveTab &&
+			($settings?.notificationEnabled ?? false) &&
+			typeof Notification !== 'undefined' &&
+			Notification.permission === 'granted'
+		) {
+			new Notification(`${notification.title} - Open WebUI`, {
+				body: notification.message,
+				icon: `${WEBUI_BASE_URL}/static/favicon.png`
+			});
+		}
+
+		clearErrorNotification(notification.id);
 	};
 
 	const chatEventHandler = async (event, cb) => {
@@ -560,11 +638,21 @@
 							}
 						} catch (error) {
 							console.error('chatCompletion', error);
+							notifyError(error, {
+								title: 'Model response failed',
+								source: 'model',
+								dedupeKey: `direct-model:${model?.id ?? form_data?.model ?? 'unknown'}:${normalizeErrorMessage(error)}`
+							});
 							cb(error);
 						}
 					}
 				} catch (error) {
 					console.error('chatCompletion', error);
+					notifyError(error, {
+						title: 'Model response failed',
+						source: 'model',
+						dedupeKey: `direct-model:${model?.id ?? form_data?.model ?? 'unknown'}:${normalizeErrorMessage(error)}`
+					});
 					cb(error);
 				} finally {
 					$socket.emit(channel, {
@@ -772,6 +860,17 @@
 
 	onMount(async () => {
 		window.addEventListener('message', windowMessageEventHandler);
+
+		unsubscribeErrorNotifications = errorNotifications.subscribe((notifications) => {
+			for (const notification of notifications) {
+				if (shownErrorNotificationIds.has(notification.id)) {
+					continue;
+				}
+
+				shownErrorNotificationIds.add(notification.id);
+				showErrorNotification(notification);
+			}
+		});
 
 		let touchstartY = 0;
 
@@ -1026,6 +1125,7 @@
 
 	onDestroy(() => {
 		bc.close();
+		unsubscribeErrorNotifications?.();
 	});
 </script>
 

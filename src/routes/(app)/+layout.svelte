@@ -47,7 +47,7 @@
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
-	import { Shortcut, shortcuts } from '$lib/shortcuts';
+	import { Shortcut, shortcuts, type ShortcutDefinition } from '$lib/shortcuts';
 
 	const i18n = getContext('i18n');
 
@@ -215,7 +215,10 @@
 		]);
 
 		// Helper function to check if the pressed keys match the shortcut definition
-		const isShortcutMatch = (event: KeyboardEvent, shortcut): boolean => {
+		const isShortcutMatch = (
+			event: KeyboardEvent,
+			shortcut: ShortcutDefinition | undefined
+		): boolean => {
 			const keys = shortcut?.keys || [];
 
 			const normalized = keys.map((k) => k.toLowerCase());
@@ -225,8 +228,8 @@
 
 			const mainKeys = normalized.filter((k) => !['ctrl', 'shift', 'alt', 'mod'].includes(k));
 
-			// Get the main key pressed
 			const keyPressed = event.key.toLowerCase();
+			const codePressed = event.code.toLowerCase();
 
 			// Check modifiers
 			if (needShift && !event.shiftKey) return false;
@@ -236,7 +239,9 @@
 			if (needAlt && !event.altKey) return false;
 			if (!needAlt && event.altKey) return false;
 
-			if (mainKeys.length && !mainKeys.includes(keyPressed)) return false;
+			if (mainKeys.length && !mainKeys.includes(keyPressed) && !mainKeys.includes(codePressed)) {
+				return false;
+			}
 
 			return true;
 		};
