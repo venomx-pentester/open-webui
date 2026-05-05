@@ -285,9 +285,7 @@
 	};
 
 	$: activeMode = normalizeActiveMode(
-		((params as any)?.active_mode ??
-			($settings?.params as any)?.active_mode ??
-			'ASK') as string
+		((params as any)?.active_mode ?? ($settings?.params as any)?.active_mode ?? 'ASK') as string
 	);
 
 	const setActiveMode = (mode: string) => {
@@ -1359,6 +1357,8 @@
 						>
 							<button
 								class=" bg-white border border-gray-100 dark:border-none dark:bg-white/20 p-1.5 rounded-full pointer-events-auto"
+								type="button"
+								aria-label={$i18n.t('Scroll to bottom')}
 								on:click={() => {
 									autoScroll = true;
 									scrollToBottom();
@@ -1368,6 +1368,7 @@
 									xmlns="http://www.w3.org/2000/svg"
 									viewBox="0 0 20 20"
 									fill="currentColor"
+									aria-hidden="true"
 									class="w-5 h-5"
 								>
 									<path
@@ -1443,8 +1444,10 @@
 						<button
 							id="generate-message-pair-button"
 							class="hidden"
+							type="button"
+							aria-label={$i18n.t('Generate Message Pair')}
 							on:click={() => createMessagePair(prompt)}
-						/>
+						></button>
 
 						<!-- Queued messages display -->
 						{#if messageQueue.length > 0}
@@ -1609,7 +1612,7 @@
 												<button
 													type="button"
 													class="p-1 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-800/50"
-													aria-label="Expand input"
+													aria-label={$i18n.t('Expand input')}
 													on:click={async () => {
 														showInputModal = true;
 													}}
@@ -2221,6 +2224,9 @@
 											<Tooltip content={$i18n.t('Stop')}>
 												<button
 													class="bg-white hover:bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-1.5"
+													type="button"
+													aria-label={$i18n.t('Stop generating')}
+													aria-keyshortcuts="Escape"
 													on:click={() => {
 														stopResponse();
 													}}
@@ -2229,6 +2235,7 @@
 														xmlns="http://www.w3.org/2000/svg"
 														viewBox="0 0 24 24"
 														fill="currentColor"
+														aria-hidden="true"
 														class="size-5"
 													>
 														<path
@@ -2248,6 +2255,7 @@
 													id="create-note-button"
 													class=" text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 -mr-1 self-center"
 													type="button"
+													aria-label={$i18n.t('Create note')}
 													disabled={prompt === '' && files.length === 0}
 													on:click={() => {
 														createNote();
@@ -2297,12 +2305,14 @@
 																toast.error($i18n.t('Permission denied when accessing microphone'));
 															}
 														}}
-														aria-label="Voice Input"
+														aria-label={$i18n.t('Dictate')}
+														aria-keyshortcuts="Control+Shift+L Meta+Shift+L"
 													>
 														<svg
 															xmlns="http://www.w3.org/2000/svg"
 															viewBox="0 0 20 20"
 															fill="currentColor"
+															aria-hidden="true"
 															class="size-5 translate-y-[0.5px]"
 														>
 															<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
@@ -2391,6 +2401,12 @@
 															? 'bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 '
 															: 'text-white bg-gray-500 dark:text-white dark:bg-gray-600 disabled cursor-not-allowed'} transition rounded-full p-1.5 self-center"
 														type="submit"
+														aria-label={uploadPending
+															? $i18n.t('Waiting for upload...')
+															: $i18n.t('Send message')}
+														aria-keyshortcuts={($settings?.ctrlEnterToSend ?? false)
+															? 'Control+Enter Meta+Enter'
+															: 'Enter'}
 														disabled={(prompt === '' && files.length === 0) || uploadPending}
 													>
 														{#if uploadPending}
@@ -2400,6 +2416,7 @@
 																xmlns="http://www.w3.org/2000/svg"
 																viewBox="0 0 16 16"
 																fill="currentColor"
+																aria-hidden="true"
 																class="size-5"
 															>
 																<path

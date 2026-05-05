@@ -1,6 +1,7 @@
 import { derived, get, writable } from 'svelte/store';
 
 import type { Target } from '$lib/components/workspace/Targets/types';
+import { notifyError } from '$lib/stores/errorNotifications';
 import { vxStore } from '$lib/utils/venomxDebug';
 
 export type ScanStageStatus = 'pending' | 'in_progress' | 'complete' | 'error';
@@ -39,6 +40,47 @@ export type DispatchEntry = {
 	tools?: string[];
 };
 
+export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info' | 'unknown';
+
+export type TopologySystem = {
+	id: string;
+	name: string;
+	address?: string;
+	type?: string;
+	os?: string;
+	services: string[];
+	risk: VulnerabilitySeverity;
+	status?: string;
+};
+
+export type TopologyLink = {
+	id: string;
+	source: string;
+	target: string;
+	label?: string;
+	protocol?: string;
+};
+
+export type VulnerabilityFinding = {
+	id: string;
+	title: string;
+	severity: VulnerabilitySeverity;
+	systemId: string;
+	systemName: string;
+	cve?: string;
+	port?: string;
+	evidence?: string;
+	status?: string;
+	specialist?: string;
+};
+
+export type ScanFindings = {
+	systems: TopologySystem[];
+	links: TopologyLink[];
+	vulnerabilities: VulnerabilityFinding[];
+	updatedAt: number | null;
+};
+
 export type ScanSession = {
 	id: string;
 	targetId: string;
@@ -63,6 +105,7 @@ export type ScanSession = {
 	specialist: string | null;
 	/** True when the run_complete event reports a .docx was generated */
 	hasDocx: boolean;
+	findings: ScanFindings;
 };
 
 type ScanSessionMap = Record<string, ScanSession>;
@@ -112,6 +155,12 @@ const STAGE_MESSAGES: Record<ScanStageId, string[]> = {
 
 const MOCK_ERROR_PROBABILITY = 0.08;
 const MAX_ACTIVITY_ITEMS = 24;
+const EMPTY_FINDINGS = (): ScanFindings => ({
+	systems: [],
+	links: [],
+	vulnerabilities: [],
+	updatedAt: null
+});
 
 const sessions = writable<ScanSessionMap>({});
 const runtime = new Map<string, RuntimeSessionState>();
@@ -230,6 +279,13 @@ const startTicker = (targetId: string) => {
 			stageProgress > 0.5 &&
 			Math.random() < MOCK_ERROR_PROBABILITY
 		) {
+			notifyError('Mock signal indicates analysis instability. Escalating as demo error.', {
+				title: 'Pentest scan failed',
+				source: 'scan',
+				targetId,
+				targetName: current.targetName,
+				dedupeKey: `mock-scan:${targetId}`
+			});
 			setSession(targetId, (session) => {
 				const failed = appendActivity(
 					session,
@@ -242,6 +298,7 @@ const startTicker = (targetId: string) => {
 					currentStageId: 'service_analysis',
 					progress: Math.max(failed.progress, 72),
 					endedAt: now(),
+					errorMessage: 'Mock signal indicates analysis instability. Escalating as demo error.',
 					stages: markStageStatus(failed.stages, 'service_analysis', 'error'),
 					updatedAt: now()
 				};
@@ -360,7 +417,8 @@ export const startMockScanSession = (target: Target) => {
 			errorMessage: null,
 			agentRunId: null,
 			specialist: null,
-			hasDocx: false
+			hasDocx: false,
+			findings: EMPTY_FINDINGS()
 		}
 	}));
 
@@ -635,7 +693,8 @@ export const startScanSession = (target: Target) => {
 			errorMessage: null,
 			agentRunId: null,
 			specialist: null,
-			hasDocx: false
+			hasDocx: false,
+			findings: EMPTY_FINDINGS()
 		}
 	}));
 };
@@ -662,6 +721,17 @@ export const applyScanSessionStatusEvent = (
 ) => {
 	if (!ensureLiveSession(targetId)) {
 		return;
+	}
+
+	if (status.error) {
+		const session = get(sessions)[targetId];
+		notifyError(status.description ?? status.action ?? 'The model reported a scan error.', {
+			title: 'Model scan update failed',
+			source: 'model',
+			targetId,
+			targetName: session?.targetName,
+			dedupeKey: `scan-status:${targetId}:${status.action ?? status.description ?? 'unknown'}`
+		});
 	}
 
 	const stageId = resolveStatusStage(status.action);
@@ -698,6 +768,7 @@ export const applyScanSessionStatusEvent = (
 				lifecycle,
 				currentStageId: stageId,
 				progress: Math.max(session.progress, boundedProgress),
+				findings: mergeFindings(session, asRecord(status)),
 				updatedAt: timestamp,
 				stages: deriveStagesForLiveSession(session, stageId, {
 					lifecycle,
@@ -773,6 +844,17 @@ export const completeScanSession = (
 		return;
 	}
 
+	if (errorMessage) {
+		const session = get(sessions)[targetId];
+		notifyError(errorMessage, {
+			title: 'Model response failed',
+			source: 'model',
+			targetId,
+			targetName: session?.targetName,
+			dedupeKey: `model-complete:${targetId}:${errorMessage}`
+		});
+	}
+
 	setSession(targetId, (session) => {
 		const timestamp = now();
 		const stageId: ScanStageId = errorMessage ? session.currentStageId : 'complete';
@@ -785,6 +867,7 @@ export const completeScanSession = (
 			progress: errorMessage ? Math.max(session.progress, 70) : 100,
 			streamChars: session.streamChars,
 			endedAt: timestamp,
+			errorMessage: errorMessage ? errorMessage.slice(0, 200) : null,
 			updatedAt: timestamp,
 			stages: deriveStagesForLiveSession(session, stageId, {
 				lifecycle,
@@ -955,6 +1038,412 @@ const dispatchProgress = (session: ScanSession): number => {
 	return Math.max(session.progress, bounded);
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+	value && typeof value === 'object' && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+const firstString = (...values: unknown[]) => {
+	for (const value of values) {
+		if (typeof value === 'string' && value.trim()) {
+			return value.trim();
+		}
+		if (typeof value === 'number') {
+			return String(value);
+		}
+	}
+	return '';
+};
+
+const severityRank: Record<VulnerabilitySeverity, number> = {
+	unknown: 0,
+	info: 1,
+	low: 2,
+	medium: 3,
+	high: 4,
+	critical: 5
+};
+
+const normalizeSeverity = (value: unknown): VulnerabilitySeverity => {
+	const text = firstString(value).toLowerCase();
+	if (['critical', 'crit'].includes(text)) return 'critical';
+	if (['high', 'important'].includes(text)) return 'high';
+	if (['medium', 'moderate', 'med'].includes(text)) return 'medium';
+	if (['low'].includes(text)) return 'low';
+	if (['info', 'informational', 'note'].includes(text)) return 'info';
+	return 'unknown';
+};
+
+const maxSeverity = (a: VulnerabilitySeverity, b: VulnerabilitySeverity): VulnerabilitySeverity =>
+	severityRank[b] > severityRank[a] ? b : a;
+
+const stableId = (prefix: string, value: string) =>
+	`${prefix}-${
+		value
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '')
+			.slice(0, 72) || 'unknown'
+	}`;
+
+const normalizeServices = (value: unknown): string[] => {
+	const list = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+	return list
+		.map((item) => {
+			if (typeof item === 'string') return item.trim();
+			const record = asRecord(item);
+			const port = firstString(record.port, record.number);
+			const name = firstString(record.name, record.service, record.protocol);
+			return [port, name].filter(Boolean).join('/');
+		})
+		.filter(Boolean)
+		.slice(0, 8);
+};
+
+const graphNodeId = (record: Record<string, unknown>) => firstString(record.node_id, record.id);
+
+const graphNodeType = (record: Record<string, unknown>) =>
+	firstString(record.node_type, record.type, record.kind, record.role).toLowerCase();
+
+const isVulnerabilityGraphNode = (record: Record<string, unknown>) =>
+	['vulnerability', 'vuln', 'finding', 'issue'].includes(graphNodeType(record));
+
+const serviceLabel = (record: Record<string, unknown>) => {
+	const port = firstString(record.port);
+	const protocol = firstString(record.protocol);
+	const service = firstString(record.service, record.name);
+	const product = firstString(record.product);
+	const version = firstString(record.version);
+	const endpoint = [port, protocol].filter(Boolean).join('/');
+	const banner = [service, [product, version].filter(Boolean).join(' ')].filter(Boolean).join(' ');
+
+	return [endpoint, banner].filter(Boolean).join(' ').trim();
+};
+
+const normalizeSystem = (value: unknown, fallbackName: string): TopologySystem | null => {
+	const record = asRecord(value);
+	const nodeType = graphNodeType(record);
+	const nodeId = graphNodeId(record);
+	const isService = nodeType === 'service';
+	const service = isService ? serviceLabel(record) : '';
+	const name = firstString(
+		record.name,
+		record.hostname,
+		isService ? service : undefined,
+		record.host,
+		record.ip,
+		record.address,
+		nodeId,
+		fallbackName
+	);
+
+	if (!name) return null;
+
+	const address = firstString(record.address, record.ip, record.host);
+	const id = firstString(nodeId, address, name);
+	return {
+		id: stableId('system', id),
+		name,
+		address: address || undefined,
+		type: firstString(record.node_type, record.type, record.kind, record.role) || undefined,
+		os: firstString(record.os, record.platform) || undefined,
+		services: Array.from(
+			new Set([
+				...normalizeServices(record.services ?? record.ports),
+				...(service ? [service] : [])
+			])
+		).slice(0, 8),
+		risk: normalizeSeverity(record.risk ?? record.severity),
+		status: firstString(record.status, record.state) || undefined
+	};
+};
+
+const normalizeVulnerability = (
+	value: unknown,
+	defaultSystem: TopologySystem,
+	specialist?: string
+): VulnerabilityFinding | null => {
+	const record = asRecord(value);
+	const cve = firstString(record.cve, record.cve_id, record.CVE);
+	const title = firstString(
+		record.title,
+		record.name,
+		record.vulnerability,
+		record.description,
+		cve
+	);
+	if (!title) return null;
+
+	const systemName = firstString(
+		record.systemName,
+		record.system,
+		record.host,
+		record.hostname,
+		record.ip,
+		defaultSystem.name
+	);
+	const systemAddress = firstString(record.address, record.ip, record.host);
+	const systemId = stableId(
+		'system',
+		firstString(record.systemId, record.system_id, systemAddress, systemName)
+	);
+	const id = stableId('vuln', firstString(record.id, cve, `${systemId}-${title}`));
+
+	return {
+		id,
+		title,
+		severity: normalizeSeverity(record.severity ?? record.risk),
+		systemId,
+		systemName,
+		cve: cve || undefined,
+		port: firstString(record.port, record.service_port) || undefined,
+		evidence: firstString(record.evidence, record.summary, record.detail, record.description).slice(
+			0,
+			260
+		),
+		status: firstString(record.status, record.state) || undefined,
+		specialist
+	};
+};
+
+const normalizeLink = (value: unknown): TopologyLink | null => {
+	const record = asRecord(value);
+	const source = firstString(
+		record.source,
+		record.from,
+		record.src,
+		record.source_id,
+		record.source_node_id
+	);
+	const target = firstString(
+		record.target,
+		record.to,
+		record.dst,
+		record.target_id,
+		record.target_node_id
+	);
+	if (!source || !target) return null;
+
+	const normalizedSource = stableId('system', source);
+	const normalizedTarget = stableId('system', target);
+	return {
+		id: stableId(
+			'link',
+			firstString(
+				record.edge_id,
+				record.id,
+				`${normalizedSource}-${normalizedTarget}-${firstString(record.label, record.relation, record.protocol)}`
+			)
+		),
+		source: normalizedSource,
+		target: normalizedTarget,
+		label: firstString(record.label, record.name, record.relation, record.edge_type) || undefined,
+		protocol: firstString(record.protocol, record.service) || undefined
+	};
+};
+
+const normalizeGraphEventPayload = (event: Record<string, unknown>) => {
+	const eventName = firstString(event.event, event.type).toLowerCase();
+	const data = asRecord(event.data);
+
+	if (eventName === 'node_added' || eventName === 'node_updated') {
+		return {
+			...event,
+			nodes: [data]
+		};
+	}
+
+	if (eventName === 'edge_added' || eventName === 'edge_updated') {
+		return {
+			...event,
+			edges: [data]
+		};
+	}
+
+	return event;
+};
+
+const GRAPH_EVENT_TYPES = new Set(['node_added', 'node_updated', 'edge_added', 'edge_updated']);
+
+const mergeFindings = (
+	session: ScanSession,
+	event: Record<string, unknown>,
+	specialist?: string
+): ScanFindings => {
+	event = normalizeGraphEventPayload(event);
+	const defaultSystem: TopologySystem = {
+		id: stableId('system', session.targetName || session.targetId),
+		name: session.targetName || session.targetId,
+		address: session.targetName,
+		type: 'target',
+		services: [],
+		risk: 'unknown'
+	};
+
+	const systemsById = new Map(session.findings.systems.map((system) => [system.id, system]));
+	const vulnerabilitiesById = new Map(
+		session.findings.vulnerabilities.map((finding) => [finding.id, finding])
+	);
+	const linksById = new Map(session.findings.links.map((link) => [link.id, link]));
+	const hostToSystemId = new Map<string, string>();
+
+	for (const system of systemsById.values()) {
+		if (system.address) {
+			hostToSystemId.set(system.address, system.id);
+		}
+		hostToSystemId.set(system.name, system.id);
+	}
+
+	const rawGraphNodes = [
+		...asArray(event.systems),
+		...asArray(event.hosts),
+		...asArray(event.nodes),
+		...asArray(event.assets)
+	];
+	const rawSystems = rawGraphNodes.filter((node) => !isVulnerabilityGraphNode(asRecord(node)));
+
+	for (const rawSystem of rawSystems) {
+		const system = normalizeSystem(rawSystem, session.targetName);
+		if (!system) continue;
+
+		const existing = systemsById.get(system.id);
+		systemsById.set(system.id, {
+			...existing,
+			...system,
+			services: Array.from(new Set([...(existing?.services ?? []), ...system.services])),
+			risk: existing ? maxSeverity(existing.risk, system.risk) : system.risk
+		});
+
+		if (system.address) {
+			hostToSystemId.set(system.address, system.id);
+		}
+		hostToSystemId.set(system.name, system.id);
+	}
+
+	for (const rawSystem of rawSystems) {
+		const record = asRecord(rawSystem);
+		if (graphNodeType(record) !== 'service') continue;
+
+		const host = firstString(record.host, record.ip, record.address);
+		const parentSystemId = hostToSystemId.get(host);
+		const service = serviceLabel(record);
+		if (!parentSystemId || !service) continue;
+
+		const parent = systemsById.get(parentSystemId);
+		if (!parent) continue;
+
+		systemsById.set(parentSystemId, {
+			...parent,
+			services: Array.from(new Set([...parent.services, service])).slice(0, 8)
+		});
+	}
+
+	const rawVulnerabilities = [
+		...asArray(event.vulnerabilities),
+		...asArray(event.vulns),
+		...asArray(event.findings),
+		...asArray(event.issues),
+		...rawGraphNodes.filter((node) => isVulnerabilityGraphNode(asRecord(node)))
+	];
+
+	for (const rawVulnerability of rawVulnerabilities) {
+		const finding = normalizeVulnerability(rawVulnerability, defaultSystem, specialist);
+		if (!finding) continue;
+		vulnerabilitiesById.set(finding.id, {
+			...vulnerabilitiesById.get(finding.id),
+			...finding
+		});
+
+		const system = systemsById.get(finding.systemId);
+		systemsById.set(finding.systemId, {
+			...(system ?? {
+				id: finding.systemId,
+				name: finding.systemName,
+				services: [],
+				risk: 'unknown' as VulnerabilitySeverity
+			}),
+			risk: maxSeverity(system?.risk ?? 'unknown', finding.severity)
+		});
+	}
+
+	const rawLinks = [
+		...asArray(event.links),
+		...asArray(event.edges),
+		...asArray(event.relationships)
+	];
+	for (const rawLink of rawLinks) {
+		const link = normalizeLink(rawLink);
+		if (link) linksById.set(link.id, link);
+	}
+
+	const summary = firstString(event.summary, event.description, event.message);
+	const cves = summary.match(/CVE-\d{4}-\d{4,}/gi) ?? [];
+	if (summary && (cves.length > 0 || /vulnerab|expos|weak|misconfig|credential/i.test(summary))) {
+		const inferredSeverity = /critical/i.test(summary)
+			? 'critical'
+			: /high/i.test(summary)
+				? 'high'
+				: /medium|moderate/i.test(summary)
+					? 'medium'
+					: /low/i.test(summary)
+						? 'low'
+						: 'unknown';
+		const finding: VulnerabilityFinding = {
+			id: stableId(
+				'vuln',
+				`${specialist ?? 'summary'}-${session.targetId}-${summary.slice(0, 80)}`
+			),
+			title: cves[0]
+				? `${cves[0]} referenced by ${KEY_TO_LABEL[specialist ?? ''] ?? specialist}`
+				: summary.slice(0, 88),
+			severity: inferredSeverity,
+			systemId: defaultSystem.id,
+			systemName: defaultSystem.name,
+			cve: cves[0],
+			evidence: summary.slice(0, 260),
+			specialist
+		};
+		vulnerabilitiesById.set(finding.id, finding);
+		systemsById.set(defaultSystem.id, {
+			...(systemsById.get(defaultSystem.id) ?? defaultSystem),
+			risk: maxSeverity(systemsById.get(defaultSystem.id)?.risk ?? 'unknown', finding.severity)
+		});
+	}
+
+	const hasUpdates =
+		rawSystems.length > 0 ||
+		rawVulnerabilities.length > 0 ||
+		rawLinks.length > 0 ||
+		Boolean(
+			summary && (cves.length > 0 || /vulnerab|expos|weak|misconfig|credential/i.test(summary))
+		);
+
+	return {
+		systems: Array.from(systemsById.values()),
+		links: Array.from(linksById.values()),
+		vulnerabilities: Array.from(vulnerabilitiesById.values()),
+		updatedAt: hasUpdates ? now() : session.findings.updatedAt
+	};
+};
+
+const hasFindingPayload = (event: Record<string, unknown>) =>
+	GRAPH_EVENT_TYPES.has(firstString(event.event, event.type).toLowerCase()) ||
+	[
+		'systems',
+		'hosts',
+		'nodes',
+		'assets',
+		'vulnerabilities',
+		'vulns',
+		'findings',
+		'issues',
+		'links',
+		'edges',
+		'relationships'
+	].some((key) => Array.isArray(event[key]) && (event[key] as unknown[]).length > 0);
+
 export const applyAgentEvent = (
 	targetId: string,
 	event: { type: string; [key: string]: unknown }
@@ -964,6 +1453,15 @@ export const applyAgentEvent = (
 	}
 
 	const eventType = event.type;
+	if (eventType !== 'run_start' && hasFindingPayload(event)) {
+		const specialist =
+			typeof event.specialist === 'string' ? resolveSpecialistKey(event.specialist) : undefined;
+		setSession(targetId, (session) => ({
+			...session,
+			findings: mergeFindings(session, event, specialist),
+			updatedAt: now()
+		}));
+	}
 
 	if (eventType === 'run_start') {
 		vxStore('run_start', { targetId, run_id: event.run_id, specialist: event.specialist });
@@ -992,7 +1490,8 @@ export const applyAgentEvent = (
 					errorSpecialist: null,
 					errorMessage: null,
 					agentRunId: rid ?? session.agentRunId ?? null,
-					specialist: specialistKey
+					specialist: specialistKey,
+					findings: EMPTY_FINDINGS()
 				},
 				stageId,
 				`Agent run started for ${target || 'target'}.`
@@ -1125,6 +1624,7 @@ export const applyAgentEvent = (
 			const updated = {
 				...session,
 				dispatches,
+				findings: mergeFindings(session, event, specialist),
 				updatedAt: now()
 			};
 			updated.progress = dispatchProgress(updated);
@@ -1237,9 +1737,18 @@ export const applyAgentEvent = (
 		return;
 	}
 
-	if (eventType === 'run_error') {
+	if (eventType === 'run_error' || eventType === 'proxy_error') {
 		vxStore('run_error', { targetId, error: event.error });
 		const errorMsg = (event.error as string) ?? 'Unknown error';
+		const title = eventType === 'proxy_error' ? 'Pentest stream failed' : 'Pentest run failed';
+		const existing = get(sessions)[targetId];
+		notifyError(errorMsg, {
+			title,
+			source: 'pentest',
+			targetId,
+			targetName: existing?.targetName,
+			dedupeKey: `${eventType}:${targetId}:${errorMsg}`
+		});
 		setSession(targetId, (session) => {
 			const timestamp = now();
 			const activeDispatch = session.dispatches.find((d) => d.status === 'active');

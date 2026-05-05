@@ -1,15 +1,16 @@
-type ShortcutRegistry = {
-	[key in Shortcut]?: {
-		name: string;
-		keys: string[];
-		category: string;
-		tooltip?: string;
-		setting?: {
-			id: string;
-			value: any;
-		};
+export type ShortcutDefinition = {
+	name: string;
+	keys: string[];
+	category: string;
+	tooltip?: string;
+	setting?: {
+		id: string;
+		value: any;
 	};
 };
+
+type ShortcutRegistry = Partial<Record<Shortcut, ShortcutDefinition>> &
+	Record<string, ShortcutDefinition | undefined>;
 
 export enum Shortcut {
 	//Chat
@@ -27,6 +28,8 @@ export enum Shortcut {
 	CLOSE_MODAL = 'closeModal',
 
 	//Input
+	SEND_MESSAGE = 'sendMessage',
+	INSERT_NEWLINE = 'insertNewline',
 	FOCUS_INPUT = 'focusInput',
 	ACCEPT_AUTOCOMPLETE = 'acceptAutocomplete',
 	PREVENT_FILE_CREATION = 'preventFileCreation',
@@ -47,12 +50,12 @@ export const shortcuts: ShortcutRegistry = {
 	//Chat
 	[Shortcut.NEW_CHAT]: {
 		name: 'New Chat',
-		keys: ['mod', 'shift', 'O'],
+		keys: ['mod', 'shift', 'KeyO'],
 		category: 'Chat'
 	},
 	[Shortcut.NEW_TEMPORARY_CHAT]: {
 		name: 'New Temporary Chat',
-		keys: ['mod', 'shift', `'`],
+		keys: ['mod', 'shift', 'Quote'],
 		category: 'Chat'
 	},
 	[Shortcut.DELETE_CHAT]: {
@@ -62,34 +65,34 @@ export const shortcuts: ShortcutRegistry = {
 	},
 	[Shortcut.OPEN_MODEL_SELECTOR]: {
 		name: 'Open Model Selector',
-		keys: ['mod', 'shift', 'M'],
+		keys: ['mod', 'shift', 'KeyM'],
 		category: 'Chat'
 	},
 	[Shortcut.TOGGLE_DICTATION]: {
 		name: 'Toggle Dictation',
-		keys: ['mod', 'shift', 'L'],
+		keys: ['mod', 'shift', 'KeyL'],
 		category: 'Chat'
 	},
 
 	//Global
 	[Shortcut.SEARCH]: {
 		name: 'Search',
-		keys: ['mod', 'K'],
+		keys: ['mod', 'KeyK'],
 		category: 'Global'
 	},
 	[Shortcut.OPEN_SETTINGS]: {
 		name: 'Open Settings',
-		keys: ['mod', '.'],
+		keys: ['mod', 'Period'],
 		category: 'Global'
 	},
 	[Shortcut.SHOW_SHORTCUTS]: {
 		name: 'Show Shortcuts',
-		keys: ['mod', '/'],
+		keys: ['mod', 'Slash'],
 		category: 'Global'
 	},
 	[Shortcut.TOGGLE_SIDEBAR]: {
 		name: 'Toggle Sidebar',
-		keys: ['mod', 'shift', 'S'],
+		keys: ['mod', 'shift', 'KeyS'],
 		category: 'Global'
 	},
 	[Shortcut.CLOSE_MODAL]: {
@@ -99,6 +102,18 @@ export const shortcuts: ShortcutRegistry = {
 	},
 
 	//Input
+	[Shortcut.SEND_MESSAGE]: {
+		name: 'Send Message',
+		keys: ['Enter'],
+		category: 'Input',
+		tooltip: 'When "Ctrl+Enter to Send" is enabled, use Ctrl+Enter instead.'
+	},
+	[Shortcut.INSERT_NEWLINE]: {
+		name: 'Insert Newline',
+		keys: ['shift', 'Enter'],
+		category: 'Input',
+		tooltip: 'When "Ctrl+Enter to Send" is enabled, Enter inserts a newline.'
+	},
 	[Shortcut.FOCUS_INPUT]: {
 		name: 'Focus Chat Input',
 		keys: ['shift', 'Escape'],
@@ -111,7 +126,7 @@ export const shortcuts: ShortcutRegistry = {
 	},
 	[Shortcut.PREVENT_FILE_CREATION]: {
 		name: 'Prevent File Creation',
-		keys: ['mod', 'shift', 'V'],
+		keys: ['mod', 'shift', 'KeyV'],
 		category: 'Input',
 		tooltip: 'Only active when "Paste Large Text as File" setting is toggled on.'
 	},
@@ -157,12 +172,12 @@ export const shortcuts: ShortcutRegistry = {
 	},
 	[Shortcut.COPY_LAST_RESPONSE]: {
 		name: 'Copy Last Response',
-		keys: ['mod', 'shift', 'C'],
+		keys: ['mod', 'shift', 'KeyC'],
 		category: 'Message'
 	},
 	[Shortcut.COPY_LAST_CODE_BLOCK]: {
 		name: 'Copy Last Code Block',
-		keys: ['mod', 'shift', ';'],
+		keys: ['mod', 'shift', 'Semicolon'],
 		category: 'Message'
 	}
 };

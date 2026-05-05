@@ -17,10 +17,12 @@
 	};
 
 	let form: NewTargetInput = { ...defaultForm };
+	let previousShow = show;
 
-	$: if (show) {
+	$: if (show && !previousShow) {
 		form = { ...defaultForm };
 	}
+	$: previousShow = show;
 
 	const targetTypes: TargetType[] = ['Domain', 'IP', 'URL', 'CIDR', 'Host'];
 
@@ -35,7 +37,7 @@
 	};
 </script>
 
-<Modal size="sm" bind:show>
+<Modal size="sm" bind:show ariaLabel={$i18n.t('Add Target')}>
 	<div class="target-modal-shell">
 		<div
 			class="flex justify-between dark:text-gray-200 px-5 pt-5 pb-3 border-b border-slate-200/80 dark:border-slate-800/60"
@@ -47,6 +49,7 @@
 				</div>
 			</div>
 			<button
+				type="button"
 				class="self-center rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
 				aria-label={$i18n.t('Close')}
 				on:click={() => {
@@ -60,13 +63,15 @@
 		<form class="px-5 pb-5 text-sm" on:submit|preventDefault={submitHandler}>
 			<div class="flex flex-col gap-3.5">
 				<div>
-					<div
-						class="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+					<label
+						for="target-name"
+						class="block mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
 					>
 						{$i18n.t('Name')}
-					</div>
+					</label>
 					<input
-						class="target-input w-full text-sm md:text-[15px] leading-6 rounded-xl px-3 py-2.5 outline-hidden"
+						id="target-name"
+						class="target-input w-full text-sm md:text-[15px] leading-6 rounded-lg px-3 py-2.5 outline-hidden"
 						type="text"
 						bind:value={form.name}
 						placeholder={$i18n.t('Production API Surface')}
@@ -75,13 +80,15 @@
 				</div>
 
 				<div>
-					<div
-						class="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+					<label
+						for="target-type"
+						class="block mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
 					>
 						{$i18n.t('Type')}
-					</div>
+					</label>
 					<select
-						class="target-input w-full rounded-xl text-sm md:text-[15px] leading-6 px-3 py-2.5 outline-hidden"
+						id="target-type"
+						class="target-input w-full rounded-lg text-sm md:text-[15px] leading-6 px-3 py-2.5 outline-hidden"
 						bind:value={form.type}
 					>
 						{#each targetTypes as type}
@@ -91,13 +98,15 @@
 				</div>
 
 				<div>
-					<div
-						class="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+					<label
+						for="target-value"
+						class="block mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
 					>
 						{$i18n.t('Value')}
-					</div>
+					</label>
 					<input
-						class="target-input w-full text-sm md:text-[15px] leading-6 rounded-xl px-3 py-2.5 outline-hidden"
+						id="target-value"
+						class="target-input w-full text-sm md:text-[15px] leading-6 rounded-lg px-3 py-2.5 outline-hidden"
 						type="text"
 						bind:value={form.value}
 						placeholder={$i18n.t('api.example.com')}
@@ -106,13 +115,15 @@
 				</div>
 
 				<div>
-					<div
-						class="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+					<label
+						for="target-description"
+						class="block mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
 					>
 						{$i18n.t('Description')}
-					</div>
+					</label>
 					<textarea
-						class="target-input w-full text-sm md:text-[15px] leading-6 rounded-xl px-3 py-2.5 outline-hidden resize-none"
+						id="target-description"
+						class="target-input w-full text-sm md:text-[15px] leading-6 rounded-lg px-3 py-2.5 outline-hidden resize-none"
 						bind:value={form.description}
 						rows="3"
 						placeholder={$i18n.t('Optional context for this target asset')}
@@ -123,7 +134,7 @@
 			<div class="mt-4 flex justify-end gap-2.5">
 				<button
 					type="button"
-					class="px-3.5 py-2 rounded-xl bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-800/70 dark:hover:bg-slate-700/80 transition font-medium"
+					class="px-3.5 py-2 rounded-lg bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-800/70 dark:hover:bg-slate-700/80 transition font-medium"
 					on:click={() => {
 						show = false;
 					}}
@@ -132,7 +143,7 @@
 				</button>
 				<button
 					type="submit"
-					class="px-3.5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-semibold"
+					class="px-3.5 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition font-semibold"
 				>
 					{$i18n.t('Add Target')}
 				</button>
@@ -145,7 +156,7 @@
 	.target-modal-shell {
 		background: rgba(255, 255, 255, 0.96);
 		border: 1px solid rgba(148, 163, 184, 0.25);
-		border-radius: 24px;
+		border-radius: 12px;
 		box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
 		backdrop-filter: blur(16px);
 	}
