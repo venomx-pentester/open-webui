@@ -118,8 +118,7 @@ async def stream_run(run_id: str, request: Request):
                     async for line in upstream.aiter_lines():
                         if await request.is_disconnected():
                             break
-                        yield (line + '
-').encode()
+                        yield (line + '\n').encode()
         except Exception as exc:
             log.warning('[agent_runner] stream proxy error for %s: %s', run_id, exc)
             yield f'data: {{"type":"proxy_error","error":"{exc}"}}\n\n'.encode()
